@@ -36,6 +36,13 @@
 *.exe
 *.out
 *.app
+train
+encode
 
 # debug information files
 *.dwo
+
+# CMake
+build/
+CMakeFiles/
+CMakeCache.txt
