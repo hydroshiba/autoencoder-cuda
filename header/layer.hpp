@@ -16,7 +16,6 @@ public:
     virtual Tensor backward_gpu(const Tensor &grad_output) = 0;
 
     void update(float learning_rate);
-
     void to_gpu();
 };
 
