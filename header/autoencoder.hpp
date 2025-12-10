@@ -1,7 +1,7 @@
 #ifndef AUTOENCODER_HPP
 #define AUTOENCODER_HPP
 
-namespace Autoencoder {
+namespace AutoEncoder {
 
 class Base {
 private:

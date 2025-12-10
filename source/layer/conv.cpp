@@ -19,7 +19,7 @@ namespace
     }
 }
 
-Conv2D::Conv2D(const int& in_ch, const int& out_ch, const int& k, const int& s, const int& p)
+Conv2D::Conv2D(const int &in_ch, const int &out_ch, const int &k, const int &s, const int &p)
     : in_channels(in_ch), out_channels(out_ch), kernel_size(k), stride(s), padding(p)
 {
     if (in_channels <= 0 || out_channels <= 0)
@@ -48,7 +48,7 @@ Conv2D::Conv2D(const int& in_ch, const int& out_ch, const int& k, const int& s, 
 
     for (std::size_t idx = 0; idx < weights.size(); ++idx)
     {
-        weights[idx] = dist(rng);
+        // weights(idx) = dist(rng);
     }
     for (int oc = 0; oc < out_channels; ++oc)
     {
@@ -56,7 +56,7 @@ Conv2D::Conv2D(const int& in_ch, const int& out_ch, const int& k, const int& s, 
     }
 }
 
-Tensor Conv2D::forward_cpu(const Tensor& input)
+Tensor Conv2D::forward_cpu(const Tensor &input)
 {
     if (input.channels() != in_channels)
     {

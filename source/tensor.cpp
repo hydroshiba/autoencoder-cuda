@@ -14,13 +14,13 @@ Tensor::Tensor(int n, int c, int h, int w)
 	resize(n, c, h, w);
 }
 
-Tensor::Tensor(const Tensor& other)
+Tensor::Tensor(const Tensor &other)
 	: host_data(other.host_data), device_data(nullptr),
 	  N(other.N), C(other.C), H(other.H), W(other.W), on_gpu(other.on_gpu)
 {
 }
 
-Tensor& Tensor::operator=(const Tensor& other)
+Tensor &Tensor::operator=(const Tensor &other)
 {
 	if (this == &other)
 	{
@@ -109,12 +109,12 @@ bool Tensor::is_gpu() const
 	return on_gpu;
 }
 
-float& Tensor::operator()(int n, int c, int h, int w)
+float &Tensor::operator()(int n, int c, int h, int w)
 {
 	return host_data.at(index(n, c, h, w));
 }
 
-const float& Tensor::operator()(int n, int c, int h, int w) const
+const float &Tensor::operator()(int n, int c, int h, int w) const
 {
 	return host_data.at(index(n, c, h, w));
 }
