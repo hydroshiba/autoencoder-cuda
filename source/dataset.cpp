@@ -10,14 +10,14 @@
 #include <string>
 #include <vector>
 
-DataLoader::DataLoader(const std::string& dataset_path)
+DataLoader::DataLoader(const std::string &dataset_path)
 {
     load_data(dataset_path);
     normalize_data();
     shuffle_data();
 }
 
-void DataLoader::load_data(const std::string& dataset_path)
+void DataLoader::load_data(const std::string &dataset_path)
 {
     constexpr int image_size = 32;
     constexpr int channels = 3;
@@ -31,12 +31,12 @@ void DataLoader::load_data(const std::string& dataset_path)
     test_images.resize(test_count, channels, image_size, image_size);
     test_labels.assign(test_count, 0);
 
-    auto load_split = [&](const std::vector<std::string>& files, Tensor& images, std::vector<ushort>& labels, int max_samples)
+    auto load_split = [&](const std::vector<std::string> &files, Tensor &images, std::vector<ushort> &labels, int max_samples)
     {
         std::array<unsigned char, record_bytes> buffer{};
         int sample_idx = 0;
 
-        for (const auto& file : files)
+        for (const auto &file : files)
         {
             const std::string path = dataset_path + "/" + file;
             std::ifstream in(path, std::ios::binary);
@@ -45,7 +45,7 @@ void DataLoader::load_data(const std::string& dataset_path)
                 throw std::runtime_error("Failed to open CIFAR-10 file: " + path);
             }
 
-            while (sample_idx < max_samples && in.read(reinterpret_cast<char*>(buffer.data()), buffer.size()))
+            while (sample_idx < max_samples && in.read(reinterpret_cast<char *>(buffer.data()), buffer.size()))
             {
                 const unsigned char label = buffer[0];
 
@@ -93,7 +93,7 @@ void DataLoader::load_data(const std::string& dataset_path)
 
 void DataLoader::normalize_data()
 {
-    auto normalize = [](Tensor& images)
+    auto normalize = [](Tensor &images)
     {
         const float scale = 1.0f / 255.0f;
         const int N = images.batch();
@@ -167,7 +167,7 @@ int DataLoader::num_test() const
     return test_images.batch();
 }
 
-vector<Tensor> DataLoader::get_batch(const int& batch_idx, const int& batch_size)
+vector<Tensor> DataLoader::get_batch(const int &batch_idx, const int &batch_size)
 {
     const int total = train_images.batch();
     if (batch_idx < 0 || batch_size <= 0 || batch_idx * batch_size >= total)
