@@ -29,8 +29,8 @@ public:
 
     size_t size() const;
 
-    void to_gpu();
-    void to_cpu();
+    Tensor& to_gpu();
+    Tensor& to_cpu();
     bool is_gpu() const;
 
     float &operator()(int n, int c, int h, int w);

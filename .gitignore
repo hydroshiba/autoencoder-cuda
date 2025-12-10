@@ -46,3 +46,13 @@ encode
 build/
 CMakeFiles/
 CMakeCache.txt
+
+# Dataset
+dataset/
+
+# Misc
+.vscode/
+.DS_Store
+
+# Testing
+/test.cpp
