@@ -1,5 +1,9 @@
-#pragma once
+#ifndef DATASET_HPP
+#define DATASET_HPP
+
 #include <vector>
+#include <string>
+
 #include "tensor.hpp"
 
 class DataLoader
@@ -23,3 +27,5 @@ public:
     int num_train() const;
     int num_test() const;
 };
+
+#endif // DATASET_HPP

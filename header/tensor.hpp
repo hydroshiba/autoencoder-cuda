@@ -11,23 +11,23 @@ private:
     int N, C, H, W;
     bool on_gpu;
 
-    std::size_t index(int n, int c, int h, int w) const;
-
-public:
+    
+    public:
     Tensor();
     Tensor(int n, int c, int h, int w);
     Tensor(const Tensor &other);
     Tensor &operator=(const Tensor &other);
     ~Tensor();
-
+    
     void resize(int n, int c, int h, int w);
-
     int batch() const;
     int channels() const;
+    
     int height() const;
     int width() const;
-
+    
     size_t size() const;
+    std::size_t index(int n, int c, int h, int w) const;
 
     Tensor& to_gpu();
     Tensor& to_cpu();
@@ -35,4 +35,9 @@ public:
 
     float &operator()(int n, int c, int h, int w);
     const float &operator()(int n, int c, int h, int w) const;
+    
+    float* data();
+    const float* data() const;
+
+    friend class Layer;
 };

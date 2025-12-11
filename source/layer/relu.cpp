@@ -14,3 +14,15 @@
 
 //     return output;
 // }
+
+// Placeholder implementations
+
+Tensor ReLU::forward_cpu(const Tensor &input) {
+	Tensor output;
+	return output;
+}
+
+// Tensor ReLU::backward_cpu(const Tensor &grad_output) {
+// 	Tensor grad_input;
+// 	return grad_input;
+// }
