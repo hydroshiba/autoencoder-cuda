@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+using ushort = unsigned short;
+
 DataLoader::DataLoader(const std::string &dataset_path)
 {
     load_data(dataset_path);
@@ -167,7 +169,7 @@ int DataLoader::num_test() const
     return test_images.batch();
 }
 
-vector<Tensor> DataLoader::get_batch(const int &batch_idx, const int &batch_size)
+std::vector<Tensor> DataLoader::get_batch(const int &batch_idx, const int &batch_size)
 {
     const int total = train_images.batch();
     if (batch_idx < 0 || batch_size <= 0 || batch_idx * batch_size >= total)

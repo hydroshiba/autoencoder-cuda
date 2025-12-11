@@ -69,11 +69,23 @@ size_t Tensor::size() const { return host_data.size(); }
 bool Tensor::is_gpu() const { return on_gpu; }
 
 float &Tensor::operator()(int n, int c, int h, int w) {
+	if(on_gpu) return device_data[index(n, c, h, w)];
 	return host_data.at(index(n, c, h, w));
 }
 
 const float &Tensor::operator()(int n, int c, int h, int w) const {
+	if(on_gpu) return device_data[index(n, c, h, w)];
 	return host_data.at(index(n, c, h, w));
+}
+
+float* Tensor::data() {
+	if(on_gpu) return device_data;
+	return host_data.data();
+}
+
+const float* Tensor::data() const {
+	if(on_gpu) return device_data;
+	return host_data.data();
 }
 
 std::size_t Tensor::index(int n, int c, int h, int w) const {
