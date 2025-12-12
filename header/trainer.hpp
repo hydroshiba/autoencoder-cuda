@@ -13,11 +13,11 @@ private:
     float learning_rate;
     bool use_gpu;
 
-    Autoencoder *model;
+    Autoencoder::Base *model;
     DataLoader *data_loader;
 
 public:
-    Trainer(Autoencoder *model, DataLoader *data_loader, const std::string &config_path);
+    Trainer(Autoencoder::Base *model, DataLoader *data_loader, const std::string &config_path);
 
     void load_config(const std::string &path);
 

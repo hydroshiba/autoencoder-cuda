@@ -4,10 +4,10 @@ Tensor UpSample2D::forward_cpu(const Tensor &input)
 {
     cached_input = input;
 
-    int N = input.N;
-    int C = input.C;
-    int H = input.H;
-    int W = input.W;
+    int N = input.batch();
+    int C = input.channels();
+    int H = input.height();
+    int W = input.width();
 
     int out_h = H * scale_factor;
     int out_w = W * scale_factor;
@@ -26,8 +26,7 @@ Tensor UpSample2D::forward_cpu(const Tensor &input)
                     int ih = h / scale_factor;
                     int iw = w / scale_factor;
 
-                    output.host_data[output.index(n, c, h, w)] =
-                        input.host_data[input.index(n, c, ih, iw)];
+                    output(n, c, h, w) = input(n, c, ih, iw);
                 }
             }
         }
@@ -38,19 +37,19 @@ Tensor UpSample2D::forward_cpu(const Tensor &input)
 
 Tensor UpSample2D::backward_cpu(const Tensor &grad_output)
 {
-    Tensor grad_input(cached_input.N, cached_input.C,
-                      cached_input.H, cached_input.W);
+    Tensor grad_input(cached_input.batch(), cached_input.channels(),
+                        cached_input.height(), cached_input.width());
 
-    std::fill(grad_input.host_data,
-              grad_input.host_data + grad_input.size(),
+    std::fill(grad_input.data(),
+              grad_input.data() + grad_input.size(),
               0.0f);
 
-    int out_h = cached_input.H * scale_factor;
-    int out_w = cached_input.W * scale_factor;
+    int out_h = cached_input.height() * scale_factor;
+    int out_w = cached_input.width() * scale_factor;
 
-    for (int n = 0; n < cached_input.N; n++)
+    for (int n = 0; n < cached_input.batch(); n++)
     {
-        for (int c = 0; c < cached_input.C; c++)
+        for (int c = 0; c < cached_input.channels(); c++)
         {
             for (int h = 0; h < out_h; h++)
             {
@@ -60,7 +59,7 @@ Tensor UpSample2D::backward_cpu(const Tensor &grad_output)
                     int ih = h / scale_factor;
                     int iw = w / scale_factor;
 
-                    grad_input.host_data[grad_input.index(n, c, ih, iw)] += grad_output.host_data[grad_output.index(n, c, h, w)];
+                    grad_input(n, c, ih, iw) += grad_output(n, c, h, w);
                 }
             }
         }
