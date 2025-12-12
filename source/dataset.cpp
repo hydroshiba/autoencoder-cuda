@@ -167,7 +167,7 @@ int DataLoader::num_test() const
     return test_images.batch();
 }
 
-vector<Tensor> DataLoader::get_batch(const int &batch_idx, const int &batch_size)
+Tensor DataLoader::get_batch(const int &batch_idx, const int &batch_size)
 {
     const int total = train_images.batch();
     if (batch_idx < 0 || batch_size <= 0 || batch_idx * batch_size >= total)
@@ -175,25 +175,26 @@ vector<Tensor> DataLoader::get_batch(const int &batch_idx, const int &batch_size
         throw std::out_of_range("Invalid batch index or size");
     }
 
-    std::vector<Tensor> batch;
     const int start = batch_idx * batch_size;
     const int end = std::min(start + batch_size, total);
-    batch.reserve(end - start);
+    const int actual = end - start;
 
-    for (int n = start; n < end; ++n)
+    Tensor batch(actual, train_images.channels(), train_images.height(), train_images.width());
+
+    for (int bn = 0; bn < actual; ++bn)
     {
-        Tensor sample(1, train_images.channels(), train_images.height(), train_images.width());
+        const int n = start + bn;
         for (int c = 0; c < train_images.channels(); ++c)
         {
             for (int h = 0; h < train_images.height(); ++h)
             {
                 for (int w = 0; w < train_images.width(); ++w)
                 {
-                    sample(0, c, h, w) = train_images(n, c, h, w);
+                    batch(bn, c, h, w) = train_images(n, c, h, w);
                 }
             }
         }
-        batch.push_back(sample);
     }
+
     return batch;
 }
