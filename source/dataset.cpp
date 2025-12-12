@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+using ushort = unsigned short;
+
 DataLoader::DataLoader(const std::string &dataset_path)
 {
     load_data(dataset_path);
