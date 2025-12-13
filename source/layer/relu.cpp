@@ -1,28 +1,31 @@
 #include "layer.hpp"
 
-// Tensor ReLU::forward(const Tensor& input)
-// {
-//     Tensor output;
-//     // output.initialize(input.getSize());
-    
-//     int size = input.size();
-//     for (int i = 0; i < size; ++i)
-//     {
-//         float value = input[i];
-//         output[i] = value > 0 ? value : 0; // ReLU activation: max(0, x)
-//     }
-
-//     return output;
-// }
-
-// Placeholder implementations
+#include <algorithm>
 
 Tensor ReLU::forward_cpu(const Tensor &input) {
-	Tensor output;
+	cached_input = input;
+	Tensor output(input);
+	output = output.to_cpu();
+
+	float* output_data = output.data();
+	for (int i = 0; i < output.size(); ++i)
+	{
+		output_data[i] = std::max(0.0f, output_data[i]);
+	}
+
 	return output;
 }
 
-// Tensor ReLU::backward_cpu(const Tensor &grad_output) {
-// 	Tensor grad_input;
-// 	return grad_input;
-// }
+Tensor ReLU::backward_cpu(const Tensor &grad_output) {
+	Tensor grad_input(grad_output);
+	grad_input = grad_input.to_cpu();
+
+	// Gate gradient: pass gradient only where forward input > 0
+	for (int i = 0; i < grad_input.size(); ++i) {
+		if (cached_input.data()[i] <= 0.0f) {
+			grad_input.data()[i] = 0.0f;
+		}
+	}
+
+	return grad_input;
+}

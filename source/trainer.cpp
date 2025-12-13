@@ -4,7 +4,7 @@
 #include <iostream>
 #include <fstream>
 
-Trainer::Trainer(Autoencoder *model, DataLoader *data_loader, const std::string &config_path)
+Trainer::Trainer(Autoencoder::Base *model, DataLoader *data_loader, const std::string &config_path)
 {
     this->model = model;
     this->data_loader = data_loader;
@@ -27,9 +27,12 @@ float Trainer::compute_loss(const Tensor &output, const Tensor &target)
 
     float loss = 0.0f;
 
-    for (size_t i = 0; i < output.size(); ++i)
+    const float* output_data = output.data();
+    const float* target_data = target.data();
+
+    for (int i = 0; i < output.size(); ++i)
     {
-        float diff = output.host_data[i] - target.host_data[i];
+        float diff = output_data[i] - target_data[i];
         loss += diff * diff;
     }
 
@@ -50,7 +53,7 @@ void Trainer::train()
 
 void Trainer::train_one_epoch(int epoch_idx)
 {
-    int num_batches = data_loader->num_train / batch_size;
+    int num_batches = data_loader->num_train() / batch_size;
     float total_loss = 0.0f;
 
     for (int i = 0; i < num_batches; ++i)

@@ -1,4 +1,5 @@
 #include "tensor.hpp"
+#include "kernel.cuh"
 
 class Layer {
 protected:

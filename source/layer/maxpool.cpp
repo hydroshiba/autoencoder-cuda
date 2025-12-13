@@ -58,17 +58,32 @@ Tensor MaxPool2D::forward_cpu(const Tensor &input)
 
 Tensor MaxPool2D::backward_cpu(const Tensor &grad_output)
 {
-    Tensor grad_input = Tensor(cached_input.batch(), cached_input.channels(),
-                                cached_input.height(), cached_input.width());
+    Tensor grad_input(cached_input.batch(), cached_input.channels(),
+                      cached_input.height(), cached_input.width());
 
-    std::fill(grad_input.data(),
-              grad_input.data() + grad_input.size(),
-              0.0f);
+    std::fill(grad_input.data(), grad_input.data() + grad_input.size(), 0.0f);
 
-    for (size_t i = 0; i < max_indices.size(); i++)
+    const int N = cached_input.batch();
+    const int C = cached_input.channels();
+    const int H = cached_input.height();
+    const int W = cached_input.width();
+    const int out_h = H / pool_size;
+    const int out_w = W / pool_size;
+
+    for (int n = 0; n < N; ++n)
     {
-        int idx = max_indices[i];
-        grad_input.data()[idx] += grad_output.data()[i];
+        for (int c = 0; c < C; ++c)
+        {
+            for (int oh = 0; oh < out_h; ++oh)
+            {
+                for (int ow = 0; ow < out_w; ++ow)
+                {
+                    const std::size_t out_idx = grad_output.index(n, c, oh, ow);
+                    const int in_max_idx = max_indices[out_idx];
+                    grad_input.data()[in_max_idx] += grad_output(n, c, oh, ow);
+                }
+            }
+        }
     }
 
     return grad_input;

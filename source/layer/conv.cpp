@@ -89,6 +89,7 @@ Tensor Conv2D::forward_cpu(const Tensor &input)
     const int out_width = numerator_w / stride + 1;
 
     Tensor output(batch_size, out_channels, out_height, out_width);
+    cached_input = input;
 
     for (int n = 0; n < batch_size; ++n)
     {
@@ -126,4 +127,79 @@ Tensor Conv2D::forward_cpu(const Tensor &input)
     }
 
     return output;
+}
+
+Tensor Conv2D::backward_cpu(const Tensor &grad_output)
+{
+    // Compute gradients w.r.t. input, weights, and biases
+    const int N = cached_input.batch();
+    const int C_in = in_channels;
+    const int H_in = cached_input.height();
+    const int W_in = cached_input.width();
+
+    const int H_out = (H_in + 2 * padding - kernel_size) / stride + 1;
+    const int W_out = (W_in + 2 * padding - kernel_size) / stride + 1;
+
+    Tensor grad_input(N, C_in, H_in, W_in);
+    // Zero-initialize grad tensors
+    std::fill(grad_input.data(), grad_input.data() + grad_input.size(), 0.0f);
+    std::fill(grad_weights.data(), grad_weights.data() + grad_weights.size(), 0.0f);
+    std::fill(grad_biases.data(), grad_biases.data() + grad_biases.size(), 0.0f);
+
+    // Bias gradient: sum over batch and spatial positions for each output channel
+    for (int n = 0; n < N; ++n)
+    {
+        for (int oc = 0; oc < out_channels; ++oc)
+        {
+            float bsum = 0.0f;
+            for (int oh = 0; oh < H_out; ++oh)
+            {
+                for (int ow = 0; ow < W_out; ++ow)
+                {
+                    bsum += grad_output(n, oc, oh, ow);
+                }
+            }
+            grad_biases(0, oc, 0, 0) += bsum;
+        }
+    }
+
+    // Weight gradient and input gradient
+    for (int n = 0; n < N; ++n)
+    {
+        for (int oc = 0; oc < out_channels; ++oc)
+        {
+            for (int oh = 0; oh < H_out; ++oh)
+            {
+                for (int ow = 0; ow < W_out; ++ow)
+                {
+                    const float go = grad_output(n, oc, oh, ow);
+
+                    for (int ic = 0; ic < C_in; ++ic)
+                    {
+                        for (int kh = 0; kh < kernel_size; ++kh)
+                        {
+                            for (int kw = 0; kw < kernel_size; ++kw)
+                            {
+                                const int ih = oh * stride + kh - padding;
+                                const int iw = ow * stride + kw - padding;
+
+                                if (ih < 0 || ih >= H_in || iw < 0 || iw >= W_in)
+                                {
+                                    continue;
+                                }
+
+                                // dW += input * grad_output
+                                grad_weights(oc, ic, kh, kw) += cached_input(n, ic, ih, iw) * go;
+
+                                // dInput += weight * grad_output
+                                grad_input(n, ic, ih, iw) += weights(oc, ic, kh, kw) * go;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return grad_input;
 }
