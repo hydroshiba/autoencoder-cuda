@@ -1,15 +1,58 @@
 #include "layer.hpp"
 
-Tensor MaxPool2D::forward_gpu(const Tensor &input) {
-	// Placeholder implementation for GPU forward pass of MaxPool2D layer
-	Tensor output;
-	// Actual GPU max pooling logic would go here
+#include <stdexcept>
+
+#define CHECK(err) \
+	do { \
+		cudaError_t err_ = (err); \
+		if (err_ != cudaSuccess) { \
+			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(err_)); \
+		} \
+	} while (0)
+
+__global__ void relu_forward_kernel(const float* input, float* output, int size) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x; 
+	if (i < size) 
+	{ 
+		output[i] = input[i] > 0.f ? input[i] : 0.f;
+	}
+}
+
+// ReLU backward kernel: pass gradients only where input > 0
+__global__ void relu_backward_kernel(const float* input, float* grad, int size) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < size) {
+		if (input[i] <= 0.0f) {
+			grad[i] = 0.0f;
+		}
+	}
+}
+
+Tensor ReLU::forward_gpu(const Tensor &input) {
+	cached_input = input;
+	Tensor output(input);
+	output = output.to_gpu();
+
+	dim3 blockSize(256);
+	dim3 gridSize((output.size() + blockSize.x - 1) / blockSize.x);
+	relu_forward_kernel<<<gridSize, blockSize>>>(input.data(), output.data(), output.size());
+
+	cudaDeviceSynchronize();
+	CHECK(cudaGetLastError());
+
 	return output;
 }
 
-// Tensor MaxPool2D::backward_gpu(const Tensor &grad_output) {
-// 	// Placeholder implementation for GPU backward pass of MaxPool2D layer
-// 	Tensor grad_input;
-// 	// Actual GPU max pooling gradient logic would go here
-// 	return grad_input;
-// }
+Tensor ReLU::backward_gpu(const Tensor &grad_output) {
+	Tensor grad_input(grad_output);
+	grad_input = grad_input.to_gpu();
+
+	dim3 blockSize(256);
+	dim3 gridSize((grad_input.size() + blockSize.x - 1) / blockSize.x);
+	relu_backward_kernel<<<gridSize, blockSize>>>(cached_input.data(), grad_input.data(), grad_input.size());
+
+	cudaDeviceSynchronize();
+	CHECK(cudaGetLastError());
+
+	return grad_input;
+}
