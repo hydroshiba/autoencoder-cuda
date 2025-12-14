@@ -1,3 +1,5 @@
+#include <stdexcept>
+
 // General template implementations
 
 template <typename Tag>
@@ -61,6 +63,9 @@ const float* Tensor<Tag>::data() const { return data_; }
 
 template <typename Tag>
 float& Tensor<Tag>::operator()(size_t n, size_t c, size_t h, size_t w) {
+	if(n >= batches_ || c >= channels_ || h >= height_ || w >= width_)
+		throw std::out_of_range("Tensor index out of range");
+
 	return data_[
 		n * (channels_ * height_ * width_) +
 		c * (height_ * width_) +
@@ -70,6 +75,9 @@ float& Tensor<Tag>::operator()(size_t n, size_t c, size_t h, size_t w) {
 
 template <typename Tag>
 const float& Tensor<Tag>::operator()(size_t n, size_t c, size_t h, size_t w) const {
+	if(n >= batches_ || c >= channels_ || h >= height_ || w >= width_)
+		throw std::out_of_range("Tensor index out of range");
+
 	return data_[
 		n * (channels_ * height_ * width_) +
 		c * (height_ * width_) +

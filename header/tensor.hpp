@@ -51,7 +51,7 @@ public:
 	void fill(float value);
 
 	template <int BLOCK_W = TENSOR_BLOCK_W, int BLOCK_H = TENSOR_BLOCK_H>
-	void distrubute(float mean, float std_dev, uint64_t seed = 0);
+	void distribute(float mean, float std_dev, uint64_t seed = 0);
 
 	~Tensor();
 	template <typename T> friend class Tensor;

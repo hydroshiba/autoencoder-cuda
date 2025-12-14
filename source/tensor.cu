@@ -9,7 +9,7 @@ __global__ void fill_kernel(float* data, size_t size, float value) {
 	if(i < size) data[i] = value;
 }
 
-__global__ void distrubute_kernel(float* data, size_t size, float mean, float std_dev, uint64_t seed) {
+__global__ void distribute_kernel(float* data, size_t size, float mean, float std_dev, uint64_t seed) {
 	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
 	if(i < size) {
 		uint64_t state = seed + i;
@@ -97,7 +97,7 @@ Tensor<Device::GPU>& Tensor<Device::GPU>::operator=(const Tensor<Device::GPU>& o
 	channels_ = other.channels_;
 	height_ = other.height_;
 	width_ = other.width_;
-	checkCUDA(cudaMemcpy(data_, other.data_, other.size() * sizeof(float), cudaMemcpyHostToDevice));
+	checkCUDA(cudaMemcpy(data_, other.data_, other.size() * sizeof(float), cudaMemcpyDeviceToDevice));
 
 	return *this;
 }
@@ -111,18 +111,22 @@ void Tensor<Device::GPU>::fill(float value) {
 	else {
 		size_t threads = BLOCK_W * BLOCK_H;
 		size_t blocks = (total_size + threads - 1) / threads;
+
 		fill_kernel<<<blocks, threads>>>(data_, total_size, value);
+		cudaDeviceSynchronize();
 		checkCUDA(cudaGetLastError());
 	}
 }
 
 template <>
 template <int BLOCK_W, int BLOCK_H>
-void Tensor<Device::GPU>::distrubute(float mean, float std_dev, uint64_t seed) {
+void Tensor<Device::GPU>::distribute(float mean, float std_dev, uint64_t seed) {
 	size_t total_size = size();
 	size_t threads = BLOCK_W * BLOCK_H;
 	size_t blocks = (total_size + threads - 1) / threads;
-	distrubute_kernel<<<blocks, threads>>>(data_, total_size, mean, std_dev, seed);
+
+	distribute_kernel<<<blocks, threads>>>(data_, total_size, mean, std_dev, seed);
+	cudaDeviceSynchronize();
 	checkCUDA(cudaGetLastError());
 }
 
@@ -142,4 +146,4 @@ inline const float& Tensor<Device::GPU>::operator()(size_t n, size_t c, size_t h
 
 template class Tensor<Device::GPU>;
 template void Tensor<Device::GPU>::fill<TENSOR_BLOCK_W, TENSOR_BLOCK_H>(float);
-template void Tensor<Device::GPU>::distrubute<TENSOR_BLOCK_W, TENSOR_BLOCK_H>(float, float, uint64_t);
+template void Tensor<Device::GPU>::distribute<TENSOR_BLOCK_W, TENSOR_BLOCK_H>(float, float, uint64_t);

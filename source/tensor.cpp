@@ -5,7 +5,7 @@
 // CPU specialization implementations
 
 template <>
-inline Tensor<Device::CPU>::Tensor(size_t batches, size_t channels, size_t height, size_t width) :
+Tensor<Device::CPU>::Tensor(size_t batches, size_t channels, size_t height, size_t width) :
 	batches_(batches),
 	channels_(channels),
 	height_(height),
@@ -13,7 +13,7 @@ inline Tensor<Device::CPU>::Tensor(size_t batches, size_t channels, size_t heigh
 	data_(new float[batches * channels * height * width]) {}
 
 template <>
-inline Tensor<Device::CPU>::Tensor(const Tensor<Device::CPU>& other) :
+Tensor<Device::CPU>::Tensor(const Tensor<Device::CPU>& other) :
 	batches_(other.batches_),
 	channels_(other.channels_),
 	height_(other.height_),
@@ -37,13 +37,13 @@ Tensor<Device::CPU>::Tensor(const Tensor<Device::GPU>& other) :
 }
 
 template <>
-inline void Tensor<Device::CPU>::clean_up() {
+void Tensor<Device::CPU>::clean_up() {
 	if(data_) delete[] data_;
 	data_ = nullptr;
 }
 
 template <>
-inline Tensor<Device::CPU>& Tensor<Device::CPU>::operator=(const Tensor<Device::CPU>& other) {
+Tensor<Device::CPU>& Tensor<Device::CPU>::operator=(const Tensor<Device::CPU>& other) {
 	if (this == &other) return *this;
 
 	if(this->size() != other.size()) {
@@ -79,13 +79,13 @@ Tensor<Device::CPU>& Tensor<Device::CPU>::operator=(const Tensor<Device::GPU>& o
 
 template <>
 template <int BLOCK_W, int BLOCK_H>
-inline void Tensor<Device::CPU>::fill(float value) {
+void Tensor<Device::CPU>::fill(float value) {
 	std::fill(data_, data_ + size(), value);
 }
 
 template <>
 template <int BLOCK_W, int BLOCK_H>
-inline void Tensor<Device::CPU>::distrubute(float mean, float std_dev, uint64_t seed) {
+void Tensor<Device::CPU>::distribute(float mean, float std_dev, uint64_t seed) {
 	for(size_t i = 0; i < size(); ++i) {
 		uint64_t state = seed + i;
 		uint64_t rands[2] = {Random::splitmix64(state), Random::splitmix64(state)};
@@ -97,4 +97,4 @@ inline void Tensor<Device::CPU>::distrubute(float mean, float std_dev, uint64_t 
 
 template class Tensor<Device::CPU>;
 template void Tensor<Device::CPU>::fill<TENSOR_BLOCK_W, TENSOR_BLOCK_H>(float);
-template void Tensor<Device::CPU>::distrubute<TENSOR_BLOCK_W, TENSOR_BLOCK_H>(float, float, uint64_t);
+template void Tensor<Device::CPU>::distribute<TENSOR_BLOCK_W, TENSOR_BLOCK_H>(float, float, uint64_t);
