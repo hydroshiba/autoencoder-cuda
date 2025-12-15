@@ -2,21 +2,23 @@
 
 #include <stdexcept>
 
-#define CUDA_CHECK(err) \
-    do { \
-        cudaError_t err_ = (err); \
-        if (err_ != cudaSuccess) { \
+#define CUDA_CHECK(err)                                                                       \
+    do                                                                                        \
+    {                                                                                         \
+        cudaError_t err_ = (err);                                                             \
+        if (err_ != cudaSuccess)                                                              \
+        {                                                                                     \
             throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(err_)); \
-        } \
+        }                                                                                     \
     } while (0)
 
 // 2D Convolution kernel: processes output elements in parallel.
 // Each thread computes one output element.
 __global__ void conv2d_forward_kernel(
-    const float* input,      // shape: (batch, in_channels, input_h, input_w)
-    const float* weights,    // shape: (out_channels, in_channels, kernel_size, kernel_size)
-    const float* biases,     // shape: (out_channels,)
-    float* output,           // shape: (batch, out_channels, output_h, output_w)
+    const float *input,   // shape: (batch, in_channels, input_h, input_w)
+    const float *weights, // shape: (out_channels, in_channels, kernel_size, kernel_size)
+    const float *biases,  // shape: (out_channels,)
+    float *output,        // shape: (batch, out_channels, output_h, output_w)
     int batch, int in_channels, int out_channels,
     int input_h, int input_w,
     int kernel_size, int stride, int padding,
@@ -25,7 +27,8 @@ __global__ void conv2d_forward_kernel(
     int output_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total_output = batch * out_channels * output_h * output_w;
 
-    if (output_idx >= total_output) return;
+    if (output_idx >= total_output)
+        return;
 
     // Decompose linear index into (n, oc, oh, ow)
     int n = output_idx / (out_channels * output_h * output_w);
@@ -64,10 +67,11 @@ __global__ void conv2d_forward_kernel(
 }
 
 // Backward kernels for Conv2D
-__global__ void conv2d_bias_grad_kernel(const float* grad_out, float* grad_b, int N, int OC, int H_out, int W_out)
+__global__ void conv2d_bias_grad_kernel(const float *grad_out, float *grad_b, int N, int OC, int H_out, int W_out)
 {
     int oc = blockIdx.x * blockDim.x + threadIdx.x;
-    if (oc >= OC) return;
+    if (oc >= OC)
+        return;
     float sum = 0.0f;
     for (int n = 0; n < N; ++n)
         for (int oh = 0; oh < H_out; ++oh)
@@ -76,13 +80,14 @@ __global__ void conv2d_bias_grad_kernel(const float* grad_out, float* grad_b, in
     grad_b[oc] = sum;
 }
 
-__global__ void conv2d_weight_grad_kernel(const float* input, const float* grad_out, float* grad_w,
+__global__ void conv2d_weight_grad_kernel(const float *input, const float *grad_out, float *grad_w,
                                           int N, int IC, int OC, int H_in, int W_in,
                                           int K, int stride, int pad, int H_out, int W_out)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total = OC * IC * K * K;
-    if (idx >= total) return;
+    if (idx >= total)
+        return;
     int oc = idx / (IC * K * K);
     int rem = idx % (IC * K * K);
     int ic = rem / (K * K);
@@ -99,7 +104,8 @@ __global__ void conv2d_weight_grad_kernel(const float* input, const float* grad_
             {
                 int ih = oh * stride + kh - pad;
                 int iw = ow * stride + kw - pad;
-                if (ih < 0 || ih >= H_in || iw < 0 || iw >= W_in) continue;
+                if (ih < 0 || ih >= H_in || iw < 0 || iw >= W_in)
+                    continue;
                 int in_idx = ((n * IC + ic) * H_in + ih) * W_in + iw;
                 int go_idx = ((n * OC + oc) * H_out + oh) * W_out + ow;
                 sum += input[in_idx] * grad_out[go_idx];
@@ -109,13 +115,14 @@ __global__ void conv2d_weight_grad_kernel(const float* input, const float* grad_
     grad_w[idx] = sum;
 }
 
-__global__ void conv2d_input_grad_kernel(const float* grad_out, const float* weights, float* grad_in,
+__global__ void conv2d_input_grad_kernel(const float *grad_out, const float *weights, float *grad_in,
                                          int N, int IC, int OC, int H_in, int W_in,
                                          int K, int stride, int pad, int H_out, int W_out)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total = N * IC * H_in * W_in;
-    if (idx >= total) return;
+    if (idx >= total)
+        return;
     int n = idx / (IC * H_in * W_in);
     int rem = idx % (IC * H_in * W_in);
     int ic = rem / (H_in * W_in);
@@ -132,11 +139,14 @@ __global__ void conv2d_input_grad_kernel(const float* grad_out, const float* wei
             {
                 int oh_unstrided = ih + pad - kh;
                 int ow_unstrided = iw + pad - kw;
-                if (oh_unstrided < 0 || ow_unstrided < 0) continue;
-                if (oh_unstrided % stride != 0 || ow_unstrided % stride != 0) continue;
+                if (oh_unstrided < 0 || ow_unstrided < 0)
+                    continue;
+                if (oh_unstrided % stride != 0 || ow_unstrided % stride != 0)
+                    continue;
                 int oh = oh_unstrided / stride;
                 int ow = ow_unstrided / stride;
-                if (oh < 0 || oh >= H_out || ow < 0 || ow >= W_out) continue;
+                if (oh < 0 || oh >= H_out || ow < 0 || ow >= W_out)
+                    continue;
 
                 int go_idx = ((n * OC + oc) * H_out + oh) * W_out + ow;
                 int w_idx = ((oc * IC + ic) * K + kh) * K + kw;
@@ -290,13 +300,13 @@ Tensor Conv2D::backward_gpu(const Tensor &grad_output)
         int total_w = static_cast<int>(w_size);
         int blocks_w = (total_w + threads - 1) / threads;
         conv2d_weight_grad_kernel<<<blocks_w, threads>>>(d_input, d_grad_out, d_grad_w,
-            N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
+                                                         N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
         CUDA_CHECK(cudaGetLastError());
 
         int total_in = static_cast<int>(in_size);
         int blocks_in = (total_in + threads - 1) / threads;
         conv2d_input_grad_kernel<<<blocks_in, threads>>>(d_grad_out, d_weights, d_grad_in,
-            N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
+                                                         N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
 

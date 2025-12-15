@@ -6,7 +6,7 @@
 
 #include <cuda_runtime.h>
 
-__global__ void mse_grad_kernel(const float* output, const float* input, float* grad, int N, float scale)
+__global__ void mse_grad_kernel(const float *output, const float *input, float *grad, int N, float scale)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N)
@@ -20,7 +20,7 @@ Trainer::Trainer(Autoencoder::Base *model, DataLoader *data_loader, const std::s
     this->model = model;
     this->data_loader = data_loader;
     // Default use_gpu based on model type; load_config can override
-    use_gpu = (dynamic_cast<Autoencoder::GPU*>(model) != nullptr);
+    use_gpu = (dynamic_cast<Autoencoder::GPU *>(model) != nullptr);
 
     load_config(config_path);
 }
@@ -124,7 +124,7 @@ void Trainer::train_one_epoch(int epoch_idx)
         Tensor output = model->forward(input);
         std::cout << "[DEBUG] Batch " << i << " forward done" << std::endl;
 
-        // // Compute loss
+        // Compute loss
         // float loss = compute_loss(output, input);
         // total_loss += loss;
         // std::cout << "[DEBUG] Batch " << i << " loss computed: " << loss << std::endl;
@@ -169,11 +169,11 @@ void Trainer::train_one_epoch(int epoch_idx)
         // Log
         if (i % 10 == 0)
         {
-            //std::cout << "[Epoch " << epoch_idx + 1 << " | Batch " << i << "/" << num_batches << "] Loss = " << loss << std::endl;
+            // std::cout << "[Epoch " << epoch_idx + 1 << " | Batch " << i << "/" << num_batches << "] Loss = " << loss << std::endl;
         }
     }
 
-    //std::cout << ">>> Epoch " << epoch_idx + 1 << " | Average Loss = " << total_loss / num_batches << std::endl;
+    // std::cout << ">>> Epoch " << epoch_idx + 1 << " | Average Loss = " << total_loss / num_batches << std::endl;
 }
 
 void Trainer::save_checkpoint(const std::string &path)

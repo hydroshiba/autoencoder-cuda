@@ -12,7 +12,7 @@ Tensor MaxPool2D::forward_cpu(const Tensor &input)
     int N = input.batch();
     int C = input.channels();
     int H = input.height();
-    int W = input.width();  
+    int W = input.width();
 
     int out_h = H / pool_size;
     int out_w = W / pool_size;

@@ -1,30 +1,47 @@
 cmake_minimum_required(VERSION 3.20)
 project(autoencoder LANGUAGES CXX CUDA)
 
+# C++ setting
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Enable CUDA and set standard
-enable_language(CUDA)
+# CUDA setting
 set(CMAKE_CUDA_STANDARD 17)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
-# Compile .cu files with separable compilation for device linking when needed
-set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-
-# GPU MX450 = Turing
 set(CMAKE_CUDA_ARCHITECTURES 75)
 
-include_directories(header)
+# Add CUDA include directory for CXX files
+include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
+# Directories
+include_directories(header template)
 file(GLOB_RECURSE sources "source/*.cpp" "source/*.cu")
 
+# Executables
 add_executable(train ${sources} "train.cpp")
-add_executable(encode ${sources} "encode.cpp")
+target_include_directories(train PRIVATE header)
 
-# Ensure position-independent code and proper runtime for CUDA targets
-foreach(tgt train encode)
-	set_target_properties(${tgt} PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
+add_executable(encode ${sources} "encode.cpp")
+target_include_directories(encode PRIVATE header)
+
+target_compile_options(train PRIVATE
+	$<$<COMPILE_LANGUAGE:CUDA>: -O3 -lineinfo >
+	$<$<COMPILE_LANGUAGE:CXX>: -O3 >
+)
+
+target_compile_options(encode PRIVATE
+	$<$<COMPILE_LANGUAGE:CUDA>: -O3 -lineinfo >
+	$<$<COMPILE_LANGUAGE:CXX>: -O3 >
+)
+
+# Debug section
+
+file(GLOB_RECURSE debsrc "source/tensor.cu" "source/tensor.cpp")
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/debug.cpp")
+	add_executable(debug ${debsrc} "debug.cpp")
+	target_include_directories(debug PRIVATE header)
+	target_compile_options(debug PRIVATE
+		$<$<COMPILE_LANGUAGE:CUDA>: -O0 -g -lineinfo >
+		$<$<COMPILE_LANGUAGE:CXX>: -O0 -g >
 	)
-endforeach()
+endif()

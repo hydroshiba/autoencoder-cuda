@@ -3,9 +3,15 @@
 #include "tensor.hpp"
 #include "kernel.cuh"
 
-namespace Autoencoder { class Base; class CPU; class GPU;}
+namespace Autoencoder
+{
+    class Base;
+    class CPU;
+    class GPU;
+}
 
-class Layer {
+class Layer
+{
 protected:
     Tensor weights, biases;
     Tensor grad_weights, grad_biases, cached_input;
@@ -27,7 +33,8 @@ public:
     void to_gpu();
 };
 
-class Conv2D : public Layer {
+class Conv2D : public Layer
+{
 private:
     int in_channels, out_channels;
     int kernel_size, stride, padding;
@@ -42,7 +49,8 @@ public:
     Tensor backward_gpu(const Tensor &grad_output) override;
 };
 
-class ReLU : public Layer {
+class ReLU : public Layer
+{
 public:
     Tensor forward_cpu(const Tensor &input) override;
     Tensor forward_gpu(const Tensor &input) override;
@@ -51,7 +59,8 @@ public:
     Tensor backward_gpu(const Tensor &grad_output) override;
 };
 
-class MaxPool2D : public Layer {
+class MaxPool2D : public Layer
+{
 private:
     int pool_size;
     int stride;
@@ -62,12 +71,13 @@ public:
 
     Tensor forward_cpu(const Tensor &input) override;
     Tensor forward_gpu(const Tensor &input) override;
-    
+
     Tensor backward_cpu(const Tensor &grad_output) override;
     Tensor backward_gpu(const Tensor &grad_output) override;
 };
 
-class UpSample2D : public Layer {
+class UpSample2D : public Layer
+{
 private:
     int scale_factor;
 
