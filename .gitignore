@@ -56,3 +56,5 @@ dataset/
 
 # Testing
 /test.cpp
+
+cifar-10-batches-bin
