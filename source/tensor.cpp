@@ -16,33 +16,6 @@ Tensor::Tensor(const Tensor &other) :
 	host_data(other.host_data), device_data(nullptr),
 	 N(other.N), C(other.C), H(other.H), W(other.W), on_gpu(other.on_gpu) {}
 
-Tensor &Tensor::operator=(const Tensor &other) {
-	if (this == &other) return *this;
-
-	// We don't care about device data, only copy host data for consistency
-
-	host_data = other.host_data;
-	N = other.N;
-	C = other.C;
-	H = other.H;
-	W = other.W;
-
-	if(device_data) {
-		delete[] device_data;
-		device_data = nullptr;
-		on_gpu = false;
-	}
-
-	return *this;
-}
-
-Tensor::~Tensor() {
-	if(device_data) {
-		delete[] device_data;
-		device_data = nullptr;
-	}
-}
-
 void Tensor::resize(int n, int c, int h, int w) {
 	if(n < 0 || c < 0 || h < 0 || w < 0)
 		throw std::invalid_argument("Tensor dimensions must be non-negative");

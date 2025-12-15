@@ -1,5 +1,10 @@
 #include "layer.hpp"
 
+UpSample2D::UpSample2D(int scale_factor_)
+    : scale_factor(scale_factor_)
+{
+}
+
 Tensor UpSample2D::forward_cpu(const Tensor &input)
 {
     cached_input = input;
@@ -66,15 +71,4 @@ Tensor UpSample2D::backward_cpu(const Tensor &grad_output)
     }
 
     return grad_input;
-}
-Tensor UpSample2D::forward_gpu(const Tensor &input)
-{
-    // GPU version: currently fallback to CPU
-    return forward_cpu(input);
-}
-
-Tensor UpSample2D::backward_gpu(const Tensor &grad_output)
-{
-    // GPU version: currently fallback to CPU
-    return backward_cpu(grad_output);
 }

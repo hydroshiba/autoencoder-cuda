@@ -1,10 +1,16 @@
 #include "tensor.hpp"
 #include "kernel.cuh"
+#include "tensor.hpp"
+#include "kernel.cuh"
+
+namespace Autoencoder { class Base; }
 
 class Layer {
 protected:
     Tensor weights, biases;
     Tensor grad_weights, grad_biases, cached_input;
+
+    friend class Autoencoder::Base;
 
 public:
     virtual Tensor forward_cpu(const Tensor &input) = 0;

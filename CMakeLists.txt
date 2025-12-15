@@ -18,13 +18,12 @@ file(GLOB_RECURSE sources "source/*.cpp" "source/*.cu")
 
 add_executable(train ${sources} "train.cpp")
 add_executable(encode ${sources} "encode.cpp")
-add_executable(test ${sources} "test.cpp")
 
 # Ensure position-independent code and proper runtime for CUDA targets
-foreach(tgt train encode test)
+foreach(tgt train encode)
 	set_target_properties(${tgt} PROPERTIES
 		POSITION_INDEPENDENT_CODE ON
-		CUDA_ARCHITECTURES "native"
+		CUDA_ARCHITECTURES "52;61;75;86"
 	)
 	# Use RELAXED_CONSTEXPR to avoid constexpr issues with nvcc on MSVC
 	target_compile_definitions(${tgt} PRIVATE __CUDACC_RTC__)

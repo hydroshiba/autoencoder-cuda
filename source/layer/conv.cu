@@ -154,6 +154,9 @@ Tensor Conv2D::forward_gpu(const Tensor &input)
         throw std::invalid_argument("Conv2D forward GPU: input channel mismatch");
     }
 
+    // Cache input for backward pass
+    cached_input = input;
+
     const int batch_size = input.batch();
     const int input_height = input.height();
     const int input_width = input.width();

@@ -48,7 +48,7 @@ Conv2D::Conv2D(const int &in_ch, const int &out_ch, const int &k, const int &s, 
 
     for (std::size_t idx = 0; idx < weights.size(); ++idx)
     {
-        // weights(idx) = dist(rng);
+        weights.data()[idx] = dist(rng);
     }
     for (int oc = 0; oc < out_channels; ++oc)
     {
