@@ -1,3 +1,9 @@
+#include "trainer.hpp"
+#include "dataset.hpp"
+
+#include <iostream>
+#include <fstream>
+
 #include <cuda_runtime.h>
 
 __global__ void mse_grad_kernel(const float* output, const float* input, float* grad, int N, float scale)
@@ -8,16 +14,13 @@ __global__ void mse_grad_kernel(const float* output, const float* input, float* 
         grad[i] = scale * (output[i] - input[i]);
     }
 }
-#include "trainer.hpp"
-#include "dataset.hpp"
-
-#include <iostream>
-#include <fstream>
 
 Trainer::Trainer(Autoencoder::Base *model, DataLoader *data_loader, const std::string &config_path)
 {
     this->model = model;
     this->data_loader = data_loader;
+    // Default use_gpu based on model type; load_config can override
+    use_gpu = (dynamic_cast<Autoencoder::GPU*>(model) != nullptr);
 
     load_config(config_path);
 }
@@ -29,7 +32,7 @@ void Trainer::load_config(const std::string &path)
     epochs = 100;
     batch_size = 64;
     learning_rate = 0.001f;
-    use_gpu = true;
+    // leave use_gpu as detected unless config wants to force it; for now keep detected value
 }
 
 // float Trainer::compute_loss(const Tensor &output, const Tensor &target)
