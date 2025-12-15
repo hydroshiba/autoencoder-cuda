@@ -1,4 +1,5 @@
 #include "autoencoder.hpp"
+#include <iostream>
 
 using namespace Autoencoder;
 
@@ -6,6 +7,8 @@ GPU::GPU() : Base() {
 	for(auto& layer: layers) {
 		layer->to_gpu();
 	}
+
+	std::cout << "[Autoencoder::GPU] Model moved to GPU." << std::endl;
 }
 
 void GPU::update(float learning_rate) {

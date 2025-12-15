@@ -35,7 +35,7 @@ Tensor ReLU::forward_gpu(const Tensor &input) {
 
 	dim3 blockSize(256);
 	dim3 gridSize((output.size() + blockSize.x - 1) / blockSize.x);
-	relu_forward_kernel<<<gridSize, blockSize>>>(input.data(), output.data(), output.size());
+	relu_forward_kernel<<<gridSize, blockSize>>>(output.data(), output.data(), output.size());
 
 	cudaDeviceSynchronize();
 	CHECK(cudaGetLastError());
@@ -47,9 +47,15 @@ Tensor ReLU::backward_gpu(const Tensor &grad_output) {
 	Tensor grad_input(grad_output);
 	grad_input = grad_input.to_gpu();
 
+	// Ensure cached_input is on device for kernel access
+	Tensor cached_on_gpu = cached_input;
+	if (!cached_on_gpu.is_gpu()) {
+		cached_on_gpu.to_gpu();
+	}
+
 	dim3 blockSize(256);
 	dim3 gridSize((grad_input.size() + blockSize.x - 1) / blockSize.x);
-	relu_backward_kernel<<<gridSize, blockSize>>>(cached_input.data(), grad_input.data(), grad_input.size());
+	relu_backward_kernel<<<gridSize, blockSize>>>(cached_on_gpu.data(), grad_input.data(), grad_input.size());
 
 	cudaDeviceSynchronize();
 	CHECK(cudaGetLastError());

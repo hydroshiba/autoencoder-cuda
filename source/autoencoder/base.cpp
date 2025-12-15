@@ -10,6 +10,8 @@ using namespace Autoencoder;
 
 Base::Base() : layers() {
 	this->build();
+
+	std::cout << "[Autoencoder::Base] Model built with " << layers.size() << " layers." << std::endl;
 }
 
 void Base::build() {

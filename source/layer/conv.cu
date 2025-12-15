@@ -222,6 +222,12 @@ Tensor Conv2D::forward_gpu(const Tensor &input)
         Tensor output(batch_size, out_channels, output_height, output_width);
         CUDA_CHECK(cudaMemcpy(output.data(), d_output, output_size * sizeof(float), cudaMemcpyDeviceToHost));
 
+        // Free device memor -> Clean up
+        cudaFree(d_input);
+        cudaFree(d_weights);
+        cudaFree(d_biases);
+        cudaFree(d_output);
+
         return output;
     }
     catch (...)
@@ -233,12 +239,6 @@ Tensor Conv2D::forward_gpu(const Tensor &input)
         cudaFree(d_output);
         throw;
     }
-
-    // Clean up
-    cudaFree(d_input);
-    cudaFree(d_weights);
-    cudaFree(d_biases);
-    cudaFree(d_output);
 }
 
 Tensor Conv2D::backward_gpu(const Tensor &grad_output)

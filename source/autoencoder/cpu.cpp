@@ -28,6 +28,9 @@ Tensor CPU::backward_encode(const Tensor &gradient) {
 	Tensor grad = gradient;
 	for (int i = encode_layer; i >= 0; --i) {
 		grad = layers[i]->backward_cpu(grad);
+
+		// Clear gradients after backward to avoid accumulation
+		layers[i]->clear_gradients();
 	}
 	return grad;
 }
@@ -36,6 +39,9 @@ Tensor CPU::backward_decode(const Tensor &gradient) {
 	Tensor grad = gradient;
 	for (int i = layers.size() - 1; i > encode_layer; --i) {
 		grad = layers[i]->backward_cpu(grad);
+
+		// Clear gradients after backward to avoid accumulation
+		layers[i]->clear_gradients();
 	}
 	return grad;
 }

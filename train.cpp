@@ -10,7 +10,7 @@ int main()
     Autoencoder::Base *model = new Autoencoder::CPU();
     std::cout << "[MAIN] Model created\n";
 
-    DataLoader *data_loader = new DataLoader(R"(E:\autoencoder-cuda\cifar-10-batches-bin)");
+    DataLoader *data_loader = new DataLoader("cifar-10-batches-bin");
     std::cout << "[MAIN] DataLoader created\n";
 
     Trainer trainer(model, data_loader, "./config.yaml");

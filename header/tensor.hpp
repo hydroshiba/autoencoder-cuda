@@ -44,5 +44,7 @@ public:
     float *data();
     const float *data() const;
 
+    void clear_tensor();
+
     friend class Layer;
 };
