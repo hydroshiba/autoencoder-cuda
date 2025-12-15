@@ -1,5 +1,7 @@
 #include "autoencoder.hpp"
 
+#include <iostream>
+
 using namespace Autoencoder;
 
 void CPU::update(float learning_rate) {
@@ -27,6 +29,7 @@ Tensor CPU::forward_decode(const Tensor &input) {
 Tensor CPU::backward_encode(const Tensor &gradient) {
 	Tensor grad = gradient;
 	for (int i = encode_layer; i >= 0; --i) {
+		std::cout << "[CPU] backward encode layer " << i << std::endl;
 		grad = layers[i]->backward_cpu(grad);
 
 		// Clear gradients after backward to avoid accumulation
@@ -38,6 +41,7 @@ Tensor CPU::backward_encode(const Tensor &gradient) {
 Tensor CPU::backward_decode(const Tensor &gradient) {
 	Tensor grad = gradient;
 	for (int i = layers.size() - 1; i > encode_layer; --i) {
+		std::cout << "[CPU] backward decode layer " << i << std::endl;
 		grad = layers[i]->backward_cpu(grad);
 
 		// Clear gradients after backward to avoid accumulation

@@ -41,6 +41,8 @@ Conv2D::Conv2D(const int &in_ch, const int &out_ch, const int &k, const int &s, 
 
     weights.resize(out_channels, in_channels, kernel_size, kernel_size);
     biases.resize(1, out_channels, 1, 1);
+    grad_weights.resize(out_channels, in_channels, kernel_size, kernel_size);
+    grad_biases.resize(1, out_channels, 1, 1);
 
     std::mt19937 rng(std::random_device{}());
     const float limit = kaiming_uniform_limit(in_channels, kernel_size);
