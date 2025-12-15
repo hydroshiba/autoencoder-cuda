@@ -24,3 +24,8 @@ void Layer::update(float learning_rate) {
         }
     }
 }
+
+void Layer::clear_gradients() {
+    grad_weights.clear_tensor();
+    grad_biases.clear_tensor();
+}

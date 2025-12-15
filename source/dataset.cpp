@@ -99,6 +99,12 @@ void DataLoader::load_data(const std::string &dataset_path)
             std::cout << "[DataLoader] finished file: " << file
                       << ", samples so far = " << sample_idx << "\n";
 
+            // If we've reached the requested number of samples, stop without requiring EOF
+            if (sample_idx >= max_samples)
+            {
+                break;
+            }
+
             if (!in.eof())
             {
                 throw std::runtime_error("Unexpected read error while parsing " + path);

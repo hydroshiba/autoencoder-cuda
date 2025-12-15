@@ -3,14 +3,18 @@
 #include "tensor.hpp"
 #include "kernel.cuh"
 
-namespace Autoencoder { class Base; }
+namespace Autoencoder { class Base; class CPU; class GPU;}
 
 class Layer {
 protected:
     Tensor weights, biases;
     Tensor grad_weights, grad_biases, cached_input;
 
+    void clear_gradients();
+
     friend class Autoencoder::Base;
+    friend class Autoencoder::CPU;
+    friend class Autoencoder::GPU;
 
 public:
     virtual Tensor forward_cpu(const Tensor &input) = 0;

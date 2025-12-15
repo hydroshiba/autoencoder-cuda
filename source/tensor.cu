@@ -21,6 +21,15 @@ Tensor &Tensor::operator=(const Tensor &other) {
 	return *this;
 }
 
+void Tensor::clear_tensor() {
+	if (on_gpu) {
+		cudaMemset(device_data, 0, host_data.size() * sizeof(float));
+	}
+	else {
+		std::fill(host_data.begin(), host_data.end(), 0.0f);	
+	}
+}
+
 Tensor::~Tensor() {
 	if(device_data) {
 		CHECK(cudaFree(device_data));
@@ -32,8 +41,8 @@ Tensor& Tensor::to_gpu() {
 	if(on_gpu) return *this;
 	on_gpu = true;
 
-	cudaMalloc(&device_data, host_data.size() * sizeof(float));
-	cudaMemcpy(device_data, host_data.data(), host_data.size() * sizeof(float), cudaMemcpyHostToDevice);
+	CHECK(cudaMalloc(&device_data, host_data.size() * sizeof(float)));
+	CHECK(cudaMemcpy(device_data, host_data.data(), host_data.size() * sizeof(float), cudaMemcpyHostToDevice));
 	return *this;
 }
 
