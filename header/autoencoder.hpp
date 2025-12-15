@@ -36,14 +36,26 @@ class Base {
 };
 
 class CPU: public Base {
+	private:
+		Tensor forward_encode(const Tensor &input) override;
+		Tensor forward_decode(const Tensor &input) override;
+
+		Tensor backward_decode(const Tensor &gradient) override;
+		Tensor backward_encode(const Tensor &gradient) override;
 	public:
 		void update(float learning_rate) override;
 	};
 
 class GPU: public Base {
+	private:
+		Tensor forward_encode(const Tensor &input) override;
+		Tensor forward_decode(const Tensor &input) override;
+
+		Tensor backward_decode(const Tensor &gradient) override;
+		Tensor backward_encode(const Tensor &gradient) override;
 	public:
 		GPU();
-		GPU(const Base &base);
+		//GPU(const Base &base);
 
 		void update(float learning_rate) override;
 };

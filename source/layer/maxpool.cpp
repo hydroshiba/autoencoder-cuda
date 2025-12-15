@@ -1,5 +1,10 @@
 #include "layer.hpp"
 
+MaxPool2D::MaxPool2D(int pool_size_, int stride_)
+    : pool_size(pool_size_), stride(stride_)
+{
+}
+
 Tensor MaxPool2D::forward_cpu(const Tensor &input)
 {
     cached_input = input;

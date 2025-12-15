@@ -15,6 +15,11 @@ Trainer::Trainer(Autoencoder::Base *model, DataLoader *data_loader, const std::s
 void Trainer::load_config(const std::string &path)
 {
     // TODO
+    // For simplicity, we hardcode some parameters here
+    epochs = 100;
+    batch_size = 64;
+    learning_rate = 0.001f;
+    use_gpu = false;
 }
 
 float Trainer::compute_loss(const Tensor &output, const Tensor &target)

@@ -8,7 +8,8 @@ Tensor ReLU::forward_cpu(const Tensor &input) {
 	output = output.to_cpu();
 
 	float* output_data = output.data();
-	for (int i = 0; i < output.size(); ++i)
+	int size = output.size();
+	for (int i = 0; i < size; ++i)
 	{
 		output_data[i] = std::max(0.0f, output_data[i]);
 	}
@@ -21,9 +22,12 @@ Tensor ReLU::backward_cpu(const Tensor &grad_output) {
 	grad_input = grad_input.to_cpu();
 
 	// Gate gradient: pass gradient only where forward input > 0
-	for (int i = 0; i < grad_input.size(); ++i) {
-		if (cached_input.data()[i] <= 0.0f) {
-			grad_input.data()[i] = 0.0f;
+	int size = grad_input.size();
+	float* cached_input_data = cached_input.data();
+	float* grad_input_data = grad_input.data();
+	for (int i = 0; i < size; ++i) {
+		if (cached_input_data[i] <= 0.0f) {
+			grad_input_data[i] = 0.0f;
 		}
 	}
 
