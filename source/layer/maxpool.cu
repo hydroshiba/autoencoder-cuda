@@ -2,20 +2,23 @@
 
 #include <stdexcept>
 
-#define CUDA_CHECK(err) \
-	do { \
-		cudaError_t err_ = (err); \
-		if (err_ != cudaSuccess) { \
+#define CUDA_CHECK(err)                                                                       \
+	do                                                                                        \
+	{                                                                                         \
+		cudaError_t err_ = (err);                                                             \
+		if (err_ != cudaSuccess)                                                              \
+		{                                                                                     \
 			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(err_)); \
-		} \
+		}                                                                                     \
 	} while (0)
 
-__global__ void maxpool_forward_kernel(const float* input, float* output, int* max_indices,
+__global__ void maxpool_forward_kernel(const float *input, float *output, int *max_indices,
 									   int N, int C, int H, int W, int pool, int out_h, int out_w)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	int total = N * C * out_h * out_w;
-	if (idx >= total) return;
+	if (idx >= total)
+		return;
 
 	int n = idx / (C * out_h * out_w);
 	int rem = idx % (C * out_h * out_w);
@@ -47,10 +50,11 @@ __global__ void maxpool_forward_kernel(const float* input, float* output, int* m
 	max_indices[idx] = max_flat;
 }
 
-__global__ void maxpool_backward_kernel(const float* grad_output, float* grad_input, const int* max_indices, int total)
+__global__ void maxpool_backward_kernel(const float *grad_output, float *grad_input, const int *max_indices, int total)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx >= total) return;
+	if (idx >= total)
+		return;
 	int in_idx = max_indices[idx];
 	atomicAdd(&grad_input[in_idx], grad_output[idx]);
 }

@@ -82,10 +82,6 @@ void DataLoader::load_data(const std::string &dataset_path)
                         for (int w = 0; w < image_size; ++w)
                         {
                             const int idx = channel_offset + h * image_size + w;
-                            if (sample_idx == 49999 && c == 2 && h == 31 && w == 31)
-                            {
-                                std::cout << "[DEBUG] last index reached\n";
-                            }
 
                             images(sample_idx, c, h, w) = static_cast<float>(buffer[idx]);
                         }

@@ -1,23 +1,26 @@
 #include "layer.hpp"
 #include <stdexcept>
 
-#define CUDA_CHECK(err) \
-    do { \
-        cudaError_t err_ = (err); \
-        if (err_ != cudaSuccess) { \
+#define CUDA_CHECK(err)                                                                       \
+    do                                                                                        \
+    {                                                                                         \
+        cudaError_t err_ = (err);                                                             \
+        if (err_ != cudaSuccess)                                                              \
+        {                                                                                     \
             throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(err_)); \
-        } \
+        }                                                                                     \
     } while (0)
 
 // Nearest-neighbor upsample forward kernel
-__global__ void upsample_forward_kernel(const float* input, float* output,
+__global__ void upsample_forward_kernel(const float *input, float *output,
                                         int N, int C, int H, int W, int scale)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int outH = H * scale;
     int outW = W * scale;
     int total = N * C * outH * outW;
-    if (idx >= total) return;
+    if (idx >= total)
+        return;
 
     int n = idx / (C * outH * outW);
     int rem = idx % (C * outH * outW);
@@ -34,12 +37,13 @@ __global__ void upsample_forward_kernel(const float* input, float* output,
 }
 
 // Backward kernel: accumulate gradients from expanded output back to input
-__global__ void upsample_backward_kernel(const float* grad_out, float* grad_in,
+__global__ void upsample_backward_kernel(const float *grad_out, float *grad_in,
                                          int N, int C, int H, int W, int scale)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total = N * C * H * W;
-    if (idx >= total) return;
+    if (idx >= total)
+        return;
 
     int n = idx / (C * H * W);
     int rem = idx % (C * H * W);

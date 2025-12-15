@@ -7,12 +7,12 @@ Tensor::Tensor() : host_data(), device_data(nullptr),
 				   N(0), C(0), H(0), W(0),
 				   on_gpu(false) {}
 
-Tensor::Tensor(const Tensor &other) :
-    host_data(other.host_data),
-    device_data(nullptr),
-    N(other.N), C(other.C), H(other.H), W(other.W),
-    on_gpu(false)
-{}
+Tensor::Tensor(const Tensor &other) : host_data(other.host_data),
+									  device_data(nullptr),
+									  N(other.N), C(other.C), H(other.H), W(other.W),
+									  on_gpu(false)
+{
+}
 
 Tensor::Tensor(int n, int c, int h, int w) : Tensor()
 {
@@ -62,16 +62,18 @@ bool Tensor::is_gpu() const { return on_gpu; }
 // 	return host_data.at(index(n, c, h, w));
 // }
 
-float &Tensor::operator()(int n, int c, int h, int w) {
-    if (on_gpu)
-        throw std::runtime_error("Accessing GPU tensor from CPU");
-    return host_data.at(index(n, c, h, w));
+float &Tensor::operator()(int n, int c, int h, int w)
+{
+	if (on_gpu)
+		throw std::runtime_error("Accessing GPU tensor from CPU");
+	return host_data.at(index(n, c, h, w));
 }
 
-const float &Tensor::operator()(int n, int c, int h, int w) const {
-    if (on_gpu)
-        throw std::runtime_error("Accessing GPU tensor from CPU");
-    return host_data.at(index(n, c, h, w));
+const float &Tensor::operator()(int n, int c, int h, int w) const
+{
+	if (on_gpu)
+		throw std::runtime_error("Accessing GPU tensor from CPU");
+	return host_data.at(index(n, c, h, w));
 }
 
 float *Tensor::data()
