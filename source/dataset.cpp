@@ -35,7 +35,8 @@ void DataLoader::load_data(const std::string &dataset_path)
 
     auto load_split = [&](const std::vector<std::string> &files, Tensor &images, std::vector<ushort> &labels, int max_samples)
     {
-        std::array<unsigned char, record_bytes> buffer{};
+        // std::array<unsigned char, record_bytes> buffer{};
+        std::vector<unsigned char> buffer(record_bytes);
         int sample_idx = 0;
 
         for (const auto &file : files)

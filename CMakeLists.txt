@@ -12,6 +12,9 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 # Compile .cu files with separable compilation for device linking when needed
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 
+# GPU MX450 = Turing
+set(CMAKE_CUDA_ARCHITECTURES 75)
+
 include_directories(header)
 
 file(GLOB_RECURSE sources "source/*.cpp" "source/*.cu")
@@ -23,8 +26,5 @@ add_executable(encode ${sources} "encode.cpp")
 foreach(tgt train encode)
 	set_target_properties(${tgt} PROPERTIES
 		POSITION_INDEPENDENT_CODE ON
-		CUDA_ARCHITECTURES "52;61;75;86"
 	)
-	# Use RELAXED_CONSTEXPR to avoid constexpr issues with nvcc on MSVC
-	target_compile_definitions(${tgt} PRIVATE __CUDACC_RTC__)
 endforeach()
