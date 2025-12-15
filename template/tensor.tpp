@@ -1,4 +1,9 @@
 #include <stdexcept>
+#include <type_traits>
+#include <cuda_runtime.h>
+
+#include "utils/error.cuh"
+#include "utils/random.cuh"
 
 // General template implementations
 
@@ -89,4 +94,76 @@ template <typename Tag>
 Tensor<Tag>::~Tensor() {
 	clean_up();
 	batches_ = channels_ = height_ = width_ = 0;
+}
+
+// Specific template implementations for methods
+
+template <typename Function>
+__global__ void transform_kernel(float* data, size_t size, Function func) {
+	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	if(i < size) data[i] = func(data[i]);
+}
+
+__global__ void fill_kernel(float* data, size_t size, float value);
+__global__ void distribute_kernel(float* data, size_t size, float mean, float std_dev, uint64_t seed);
+
+template <typename Tag>
+template <int BLOCK_W, int BLOCK_H>
+void Tensor<Tag>::fill(float value) {
+	if constexpr (std::is_same_v<Tag, Device::CPU>) {
+		std::fill(data_, data_ + size(), value);
+	}
+	else {
+		size_t total_size = size();
+
+		if(value == 0.0f) checkCUDA(cudaMemset(data_, 0, total_size * sizeof(float)));
+		else {
+			size_t threads = BLOCK_W * BLOCK_H;
+			size_t blocks = (total_size + threads - 1) / threads;
+
+			fill_kernel<<<blocks, threads>>>(data_, total_size, value);
+			cudaDeviceSynchronize();
+			checkCUDA(cudaGetLastError());
+		}
+	}
+}
+
+template <typename Tag>
+template <int BLOCK_W, int BLOCK_H>
+void Tensor<Tag>::distribute(float mean, float std_dev, uint64_t seed) {
+	if constexpr (std::is_same_v<Tag, Device::CPU>) {
+		for(size_t i = 0; i < size(); ++i) {
+			uint64_t state = seed + i;
+			uint64_t rands[2] = {Random::splitmix64(state), Random::splitmix64(state)};
+			data_[i] = (Random::box_muller(rands) * std_dev) + mean;
+		}
+	}
+	else {
+		size_t total_size = size();
+		size_t threads = BLOCK_W * BLOCK_H;
+		size_t blocks = (total_size + threads - 1) / threads;
+
+		distribute_kernel<<<blocks, threads>>>(data_, total_size, mean, std_dev, seed);
+		cudaDeviceSynchronize();
+		checkCUDA(cudaGetLastError());
+	}
+}
+
+template <typename Tag>
+template <int BLOCK_W, int BLOCK_H, typename Function>
+void Tensor<Tag>::transform(Function func) {
+	if constexpr (std::is_same_v<Tag, Device::CPU>) {
+		for(size_t i = 0; i < size(); ++i) {
+			data_[i] = func(data_[i]);
+		}
+	}
+	else {
+		size_t total_size = size();
+		size_t threads = BLOCK_W * BLOCK_H;
+		size_t blocks = (total_size + threads - 1) / threads;
+
+		transform_kernel<<<blocks, threads>>>(data_, total_size, func);
+		cudaDeviceSynchronize();
+		checkCUDA(cudaGetLastError());
+	}
 }

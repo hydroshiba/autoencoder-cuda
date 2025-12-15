@@ -7,14 +7,11 @@
 
 #include "utils/device.hpp"
 
-// Magic numbers
-
 #define TENSOR_BLOCK_W 16
 #define TENSOR_BLOCK_H 16
 
 template <typename Tag>
 class Tensor {
-
 	static_assert(Device::IsTag_v<Tag>, "Tensor type must be Device::CPU or Device::GPU");
 
 private:
@@ -52,6 +49,9 @@ public:
 
 	template <int BLOCK_W = TENSOR_BLOCK_W, int BLOCK_H = TENSOR_BLOCK_H>
 	void distribute(float mean, float std_dev, uint64_t seed = 0);
+
+	template <int BLOCK_W = TENSOR_BLOCK_W, int BLOCK_H = TENSOR_BLOCK_H, typename Function>
+	void transform(Function func);
 
 	~Tensor();
 	template <typename T> friend class Tensor;

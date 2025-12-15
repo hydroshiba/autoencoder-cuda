@@ -15,6 +15,13 @@ include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 # Directories
 include_directories(header template)
 file(GLOB_RECURSE sources "source/*.cpp" "source/*.cu")
+set_source_files_properties(
+	${sources} 
+	"train.cpp" 
+	"encode.cpp" 
+	"debug.cpp"
+	PROPERTIES LANGUAGE CUDA
+)
 
 # Executables
 add_executable(train ${sources} "train.cpp")
@@ -24,12 +31,12 @@ add_executable(encode ${sources} "encode.cpp")
 target_include_directories(encode PRIVATE header)
 
 target_compile_options(train PRIVATE
-	$<$<COMPILE_LANGUAGE:CUDA>: -O3 -lineinfo >
+	$<$<COMPILE_LANGUAGE:CUDA>: -O3 -lineinfo --extended-lambda --expt-relaxed-constexpr >
 	$<$<COMPILE_LANGUAGE:CXX>: -O3 >
 )
 
 target_compile_options(encode PRIVATE
-	$<$<COMPILE_LANGUAGE:CUDA>: -O3 -lineinfo >
+	$<$<COMPILE_LANGUAGE:CUDA>: -O3 -lineinfo --extended-lambda --expt-relaxed-constexpr >
 	$<$<COMPILE_LANGUAGE:CXX>: -O3 >
 )
 
@@ -41,7 +48,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/debug.cpp")
 	add_executable(debug ${debsrc} "debug.cpp")
 	target_include_directories(debug PRIVATE header)
 	target_compile_options(debug PRIVATE
-		$<$<COMPILE_LANGUAGE:CUDA>: -O0 -g -lineinfo >
+		$<$<COMPILE_LANGUAGE:CUDA>: -O0 -g -lineinfo --extended-lambda --expt-relaxed-constexpr >
 		$<$<COMPILE_LANGUAGE:CXX>: -O0 -g >
 	)
 endif()

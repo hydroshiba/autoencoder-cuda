@@ -76,25 +76,3 @@ Tensor<Device::CPU>& Tensor<Device::CPU>::operator=(const Tensor<Device::GPU>& o
 
 	return *this;
 }
-
-template <>
-template <int BLOCK_W, int BLOCK_H>
-void Tensor<Device::CPU>::fill(float value) {
-	std::fill(data_, data_ + size(), value);
-}
-
-template <>
-template <int BLOCK_W, int BLOCK_H>
-void Tensor<Device::CPU>::distribute(float mean, float std_dev, uint64_t seed) {
-	for(size_t i = 0; i < size(); ++i) {
-		uint64_t state = seed + i;
-		uint64_t rands[2] = {Random::splitmix64(state), Random::splitmix64(state)};
-		data_[i] = (Random::box_muller(rands) * std_dev) + mean;
-	}
-}
-
-// Explicit template instantiations
-
-template class Tensor<Device::CPU>;
-template void Tensor<Device::CPU>::fill<TENSOR_BLOCK_W, TENSOR_BLOCK_H>(float);
-template void Tensor<Device::CPU>::distribute<TENSOR_BLOCK_W, TENSOR_BLOCK_H>(float, float, uint64_t);
