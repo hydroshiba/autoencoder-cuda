@@ -47,7 +47,6 @@ Tensor<Device::GPU>::Tensor(const Tensor<Device::CPU>& other) :
 }
 
 template <>
-template<>
 Tensor<Device::GPU>::Tensor(const Tensor<Device::GPU>& other) :
 	batches_(other.batches_),
 	channels_(other.channels_),
@@ -83,7 +82,6 @@ Tensor<Device::GPU>& Tensor<Device::GPU>::operator=(const Tensor<Device::CPU>& o
 	return *this;
 }
 
-template <>
 template <>
 Tensor<Device::GPU>& Tensor<Device::GPU>::operator=(const Tensor<Device::GPU>& other) {
 	if(this == &other) return *this;
