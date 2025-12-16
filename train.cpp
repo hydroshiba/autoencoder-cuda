@@ -7,7 +7,7 @@ int main()
 {
     std::cout << "[MAIN] Program started\n";
 
-    Autoencoder::Base *model = new Autoencoder::GPU();
+    Autoencoder::Base *model = new Autoencoder::CPU();
     std::cout << "[MAIN] Model created\n";
 
     DataLoader *data_loader = new DataLoader("cifar-10-batches-bin");
