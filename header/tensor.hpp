@@ -13,8 +13,8 @@ private:
 
 public:
     // Constructors and destructor
-    Tensor();
-    Tensor(int n, int c, int h, int w);
+    Tensor(bool on_gpu = false);
+    Tensor(int n, int c, int h, int w, bool on_gpu = false);
     Tensor(const Tensor &other);
     Tensor &operator=(const Tensor &other);
     ~Tensor();

@@ -70,43 +70,35 @@ Tensor MaxPool2D::forward_gpu(const Tensor &input)
 	const int out_h = H / pool_size;
 	const int out_w = W / pool_size;
 
-	Tensor output(N, C, out_h, out_w);
-	max_indices.resize(N * C * out_h * out_w);
-
-	const size_t in_size = static_cast<size_t>(N) * C * H * W;
 	const size_t out_size = static_cast<size_t>(N) * C * out_h * out_w;
 
-	float *d_input = nullptr, *d_output = nullptr;
-	int *d_indices = nullptr;
+	// Ensure input is on GPU
+	Tensor input_gpu = input;
+	if (!input_gpu.is_gpu())
+	{
+		input_gpu.to_gpu();
+	}
 
-	CUDA_CHECK(cudaMalloc(&d_input, in_size * sizeof(float)));
-	CUDA_CHECK(cudaMalloc(&d_output, out_size * sizeof(float)));
+	// Create output on GPU
+	Tensor output(N, C, out_h, out_w, true);
+	output.to_gpu();
+
+	// Allocate device memory for max indices
+	max_indices.resize(out_size);
+	int *d_indices = nullptr;
 	CUDA_CHECK(cudaMalloc(&d_indices, out_size * sizeof(int)));
 
-	try
-	{
-		CUDA_CHECK(cudaMemcpy(d_input, input.data(), in_size * sizeof(float), cudaMemcpyHostToDevice));
+	const int threads = 256;
+	const int blocks = static_cast<int>((out_size + threads - 1) / threads);
+	maxpool_forward_kernel<<<blocks, threads>>>(
+		input_gpu.data(), output.data(), d_indices,
+		N, C, H, W, pool_size, out_h, out_w);
+	CUDA_CHECK(cudaGetLastError());
+	CUDA_CHECK(cudaDeviceSynchronize());
 
-		const int threads = 256;
-		const int blocks = static_cast<int>((out_size + threads - 1) / threads);
-		maxpool_forward_kernel<<<blocks, threads>>>(d_input, d_output, d_indices, N, C, H, W, pool_size, out_h, out_w);
-		CUDA_CHECK(cudaGetLastError());
-		CUDA_CHECK(cudaDeviceSynchronize());
-
-		CUDA_CHECK(cudaMemcpy(output.data(), d_output, out_size * sizeof(float), cudaMemcpyDeviceToHost));
-		CUDA_CHECK(cudaMemcpy(max_indices.data(), d_indices, out_size * sizeof(int), cudaMemcpyDeviceToHost));
-
-		cudaFree(d_input);
-		cudaFree(d_output);
-		cudaFree(d_indices);
-	}
-	catch (...)
-	{
-		cudaFree(d_input);
-		cudaFree(d_output);
-		cudaFree(d_indices);
-		throw;
-	}
+	// Copy max_indices back to host (needed for backward pass)
+	CUDA_CHECK(cudaMemcpy(max_indices.data(), d_indices, out_size * sizeof(int), cudaMemcpyDeviceToHost));
+	cudaFree(d_indices);
 
 	return output;
 }
@@ -120,44 +112,34 @@ Tensor MaxPool2D::backward_gpu(const Tensor &grad_output)
 	const int out_h = H / pool_size;
 	const int out_w = W / pool_size;
 
-	Tensor grad_input(N, C, H, W);
-	std::fill(grad_input.data(), grad_input.data() + grad_input.size(), 0.0f);
-
 	const size_t in_size = static_cast<size_t>(N) * C * H * W;
 	const size_t out_size = static_cast<size_t>(N) * C * out_h * out_w;
 
-	float *d_grad_out = nullptr, *d_grad_in = nullptr;
+	// Ensure grad_output is on GPU
+	Tensor grad_output_gpu = grad_output;
+	if (!grad_output_gpu.is_gpu())
+	{
+		grad_output_gpu.to_gpu();
+	}
+
+	// Create grad_input on GPU
+	Tensor grad_input(N, C, H, W, true);
+	grad_input.to_gpu();
+	CUDA_CHECK(cudaMemset(grad_input.data(), 0, in_size * sizeof(float)));
+
+	// Upload max_indices to device
 	int *d_indices = nullptr;
-
-	CUDA_CHECK(cudaMalloc(&d_grad_out, out_size * sizeof(float)));
-	CUDA_CHECK(cudaMalloc(&d_grad_in, in_size * sizeof(float)));
 	CUDA_CHECK(cudaMalloc(&d_indices, out_size * sizeof(int)));
+	CUDA_CHECK(cudaMemcpy(d_indices, max_indices.data(), out_size * sizeof(int), cudaMemcpyHostToDevice));
 
-	try
-	{
-		CUDA_CHECK(cudaMemcpy(d_grad_out, grad_output.data(), out_size * sizeof(float), cudaMemcpyHostToDevice));
-		CUDA_CHECK(cudaMemcpy(d_grad_in, grad_input.data(), in_size * sizeof(float), cudaMemcpyHostToDevice));
-		CUDA_CHECK(cudaMemcpy(d_indices, max_indices.data(), out_size * sizeof(int), cudaMemcpyHostToDevice));
+	const int threads = 256;
+	const int blocks = static_cast<int>((out_size + threads - 1) / threads);
+	maxpool_backward_kernel<<<blocks, threads>>>(
+		grad_output_gpu.data(), grad_input.data(), d_indices, static_cast<int>(out_size));
+	CUDA_CHECK(cudaGetLastError());
+	CUDA_CHECK(cudaDeviceSynchronize());
 
-		const int threads = 256;
-		const int blocks = static_cast<int>((out_size + threads - 1) / threads);
-		maxpool_backward_kernel<<<blocks, threads>>>(d_grad_out, d_grad_in, d_indices, static_cast<int>(out_size));
-		CUDA_CHECK(cudaGetLastError());
-		CUDA_CHECK(cudaDeviceSynchronize());
-
-		CUDA_CHECK(cudaMemcpy(grad_input.data(), d_grad_in, in_size * sizeof(float), cudaMemcpyDeviceToHost));
-
-		cudaFree(d_grad_out);
-		cudaFree(d_grad_in);
-		cudaFree(d_indices);
-	}
-	catch (...)
-	{
-		cudaFree(d_grad_out);
-		cudaFree(d_grad_in);
-		cudaFree(d_indices);
-		throw;
-	}
+	cudaFree(d_indices);
 
 	return grad_input;
 }

@@ -83,38 +83,27 @@ Tensor UpSample2D::forward_gpu(const Tensor &input)
 
     const int outH = H * scale_factor;
     const int outW = W * scale_factor;
-
-    Tensor output(N, C, outH, outW);
-
-    const size_t in_size = static_cast<size_t>(N) * C * H * W;
     const size_t out_size = static_cast<size_t>(N) * C * outH * outW;
 
-    float *d_in = nullptr, *d_out = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_in, in_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_out, out_size * sizeof(float)));
-
-    try
+    // Ensure input is on GPU
+    Tensor input_gpu = input;
+    if (!input_gpu.is_gpu())
     {
-        CUDA_CHECK(cudaMemcpy(d_in, input.data(), in_size * sizeof(float), cudaMemcpyHostToDevice));
-
-        int threads = 256;
-        int blocks = static_cast<int>((out_size + threads - 1) / threads);
-        upsample_forward_kernel<<<blocks, threads>>>(d_in, d_out, N, C, H, W, scale_factor);
-        CUDA_CHECK(cudaGetLastError());
-        CUDA_CHECK(cudaDeviceSynchronize());
-
-        CUDA_CHECK(cudaMemcpy(output.data(), d_out, out_size * sizeof(float), cudaMemcpyDeviceToHost));
-
-        cudaFree(d_in);
-        cudaFree(d_out);
-        return output;
+        input_gpu.to_gpu();
     }
-    catch (...)
-    {
-        cudaFree(d_in);
-        cudaFree(d_out);
-        throw;
-    }
+
+    // Create output on GPU
+    Tensor output(N, C, outH, outW, true);
+    output.to_gpu();
+
+    int threads = 256;
+    int blocks = static_cast<int>((out_size + threads - 1) / threads);
+    upsample_forward_kernel<<<blocks, threads>>>(
+        input_gpu.data(), output.data(), N, C, H, W, scale_factor);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    return output;
 }
 
 Tensor UpSample2D::backward_gpu(const Tensor &grad_output)
@@ -126,36 +115,26 @@ Tensor UpSample2D::backward_gpu(const Tensor &grad_output)
     const int outH = H * scale_factor;
     const int outW = W * scale_factor;
 
-    Tensor grad_input(N, C, H, W);
-
     const size_t in_size = static_cast<size_t>(N) * C * H * W;
-    const size_t out_size = static_cast<size_t>(N) * C * outH * outW;
 
-    float *d_grad_out = nullptr, *d_grad_in = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_grad_out, out_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_grad_in, in_size * sizeof(float)));
-    CUDA_CHECK(cudaMemset(d_grad_in, 0, in_size * sizeof(float)));
-
-    try
+    // Ensure grad_output is on GPU
+    Tensor grad_output_gpu = grad_output;
+    if (!grad_output_gpu.is_gpu())
     {
-        CUDA_CHECK(cudaMemcpy(d_grad_out, grad_output.data(), out_size * sizeof(float), cudaMemcpyHostToDevice));
-
-        int threads = 256;
-        int blocks = static_cast<int>((in_size + threads - 1) / threads);
-        upsample_backward_kernel<<<blocks, threads>>>(d_grad_out, d_grad_in, N, C, H, W, scale_factor);
-        CUDA_CHECK(cudaGetLastError());
-        CUDA_CHECK(cudaDeviceSynchronize());
-
-        CUDA_CHECK(cudaMemcpy(grad_input.data(), d_grad_in, in_size * sizeof(float), cudaMemcpyDeviceToHost));
-
-        cudaFree(d_grad_out);
-        cudaFree(d_grad_in);
-        return grad_input;
+        grad_output_gpu.to_gpu();
     }
-    catch (...)
-    {
-        cudaFree(d_grad_out);
-        cudaFree(d_grad_in);
-        throw;
-    }
+
+    // Create grad_input on GPU
+    Tensor grad_input(N, C, H, W, true);
+    grad_input.to_gpu();
+    CUDA_CHECK(cudaMemset(grad_input.data(), 0, in_size * sizeof(float)));
+
+    int threads = 256;
+    int blocks = static_cast<int>((in_size + threads - 1) / threads);
+    upsample_backward_kernel<<<blocks, threads>>>(
+        grad_output_gpu.data(), grad_input.data(), N, C, H, W, scale_factor);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    return grad_input;
 }

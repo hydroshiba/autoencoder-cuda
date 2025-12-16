@@ -1,6 +1,7 @@
 #include "kernel.cuh"
 
 #include <stdexcept>
+#include <iostream>
 
 #define CUDA_CHECK(err)                                                                       \
     do                                                                                        \
@@ -25,13 +26,18 @@ void sgd_update_device(float *params, const float *grads, float lr, std::size_t 
 {
     if (!params || !grads || size == 0)
     {
+        std::cout << "[sgd_update_device] Skip: params=" << params << ", grads=" << grads << ", size=" << size << std::endl;
         return; // nothing to do or invalid pointers
     }
 
     const int threads = 256;
     const int blocks = static_cast<int>((size + threads - 1) / threads);
 
+    std::cout << "[sgd_update_device] Launch kernel: size=" << size << ", blocks=" << blocks << ", threads=" << threads << std::endl;
     sgd_update_kernel<<<blocks, threads>>>(params, grads, lr, static_cast<int>(size));
+    std::cout << "[sgd_update_device] Checking last error..." << std::endl;
     CUDA_CHECK(cudaGetLastError());
+    std::cout << "[sgd_update_device] Synchronizing..." << std::endl;
     CUDA_CHECK(cudaDeviceSynchronize());
+    std::cout << "[sgd_update_device] Done" << std::endl;
 }

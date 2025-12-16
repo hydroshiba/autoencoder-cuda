@@ -2,19 +2,30 @@
 
 #include <algorithm>
 #include <stdexcept>
+#include <cuda_runtime.h>
+#include <kernel.cuh>
 
-Tensor::Tensor() : host_data(), device_data(nullptr),
+Tensor::Tensor(bool on_gpu) : host_data(), device_data(nullptr),
 				   N(0), C(0), H(0), W(0),
-				   on_gpu(false) {}
+				   on_gpu(on_gpu) {}
 
 Tensor::Tensor(const Tensor &other) : host_data(other.host_data),
-									  device_data(nullptr),
-									  N(other.N), C(other.C), H(other.H), W(other.W),
-									  on_gpu(false)
+								  device_data(nullptr),
+								  N(other.N), C(other.C), H(other.H), W(other.W),
+								  on_gpu(other.on_gpu)
 {
+	if (other.on_gpu && other.device_data)
+	{
+		size_t bytes = host_data.size() * sizeof(float);
+		if (bytes > 0)
+		{
+			CHECK(cudaMalloc(&device_data, bytes));
+			CHECK(cudaMemcpy(device_data, other.device_data, bytes, cudaMemcpyDeviceToDevice));
+		}
+	}
 }
 
-Tensor::Tensor(int n, int c, int h, int w) : Tensor()
+Tensor::Tensor(int n, int c, int h, int w, bool on_gpu) : Tensor(on_gpu)
 {
 	resize(n, c, h, w);
 }
@@ -79,14 +90,22 @@ const float &Tensor::operator()(int n, int c, int h, int w) const
 float *Tensor::data()
 {
 	if (on_gpu)
+	{
+		if (!device_data)
+			throw std::runtime_error("Tensor GPU data is null; ensure to_gpu() was called");
 		return device_data;
+	}
 	return host_data.data();
 }
 
 const float *Tensor::data() const
 {
 	if (on_gpu)
+	{
+		if (!device_data)
+			throw std::runtime_error("Tensor GPU data is null; ensure to_gpu() was called");
 		return device_data;
+	}
 	return host_data.data();
 }
 

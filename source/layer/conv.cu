@@ -164,7 +164,6 @@ Tensor Conv2D::forward_gpu(const Tensor &input)
         throw std::invalid_argument("Conv2D forward GPU: input channel mismatch");
     }
 
-    // Cache input for backward pass
     cached_input = input;
 
     const int batch_size = input.batch();
@@ -191,69 +190,49 @@ Tensor Conv2D::forward_gpu(const Tensor &input)
 
     const int output_height = numerator_h / stride + 1;
     const int output_width = numerator_w / stride + 1;
-
-    // Compute memory sizes
-    const size_t input_size = batch_size * in_channels * input_height * input_width;
-    const size_t weights_size = out_channels * in_channels * kernel_size * kernel_size;
-    const size_t biases_size = out_channels;
     const size_t output_size = batch_size * out_channels * output_height * output_width;
 
-    // Allocate device memory
-    float *d_input = nullptr, *d_weights = nullptr, *d_biases = nullptr, *d_output = nullptr;
-
-    CUDA_CHECK(cudaMalloc(&d_input, input_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_weights, weights_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_biases, biases_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_output, output_size * sizeof(float)));
-
-    try
+    // Ensure input is on GPU
+    Tensor input_gpu = input;
+    if (!input_gpu.is_gpu())
     {
-        // Copy host data to device
-        CUDA_CHECK(cudaMemcpy(d_input, input.data(), input_size * sizeof(float), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_weights, weights.data(), weights_size * sizeof(float), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_biases, biases.data(), biases_size * sizeof(float), cudaMemcpyHostToDevice));
-
-        // Configure kernel launch
-        const int threads_per_block = 256;
-        const int blocks = (output_size + threads_per_block - 1) / threads_per_block;
-
-        // Launch kernel
-        conv2d_forward_kernel<<<blocks, threads_per_block>>>(
-            d_input, d_weights, d_biases, d_output,
-            batch_size, in_channels, out_channels,
-            input_height, input_width,
-            kernel_size, stride, padding,
-            output_height, output_width);
-
-        CUDA_CHECK(cudaGetLastError());
-        CUDA_CHECK(cudaDeviceSynchronize());
-
-        // Create output tensor and copy result back
-        Tensor output(batch_size, out_channels, output_height, output_width);
-        CUDA_CHECK(cudaMemcpy(output.data(), d_output, output_size * sizeof(float), cudaMemcpyDeviceToHost));
-
-        // Free device memor -> Clean up
-        cudaFree(d_input);
-        cudaFree(d_weights);
-        cudaFree(d_biases);
-        cudaFree(d_output);
-
-        return output;
+        input_gpu.to_gpu();
     }
-    catch (...)
+
+    // Ensure weights and biases are on GPU
+    if (!weights.is_gpu())
     {
-        // Clean up on error
-        cudaFree(d_input);
-        cudaFree(d_weights);
-        cudaFree(d_biases);
-        cudaFree(d_output);
-        throw;
+        weights.to_gpu();
     }
+    if (!biases.is_gpu())
+    {
+        biases.to_gpu();
+    }
+
+    // Create output on GPU
+    Tensor output(batch_size, out_channels, output_height, output_width, true);
+    output.to_gpu();
+
+    // Configure kernel launch
+    const int threads_per_block = 256;
+    const int blocks = (output_size + threads_per_block - 1) / threads_per_block;
+
+    // Launch kernel using device pointers directly
+    conv2d_forward_kernel<<<blocks, threads_per_block>>>(
+        input_gpu.data(), weights.data(), biases.data(), output.data(),
+        batch_size, in_channels, out_channels,
+        input_height, input_width,
+        kernel_size, stride, padding,
+        output_height, output_width);
+
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    return output;
 }
 
 Tensor Conv2D::backward_gpu(const Tensor &grad_output)
 {
-    // Implement gradients w.r.t input, weights, and biases on GPU
     const int N = cached_input.batch();
     const int C_in = in_channels;
     const int H_in = cached_input.height();
@@ -261,80 +240,71 @@ Tensor Conv2D::backward_gpu(const Tensor &grad_output)
     const int H_out = (H_in + 2 * padding - kernel_size) / stride + 1;
     const int W_out = (W_in + 2 * padding - kernel_size) / stride + 1;
 
-    // Allocate output grad input
-    Tensor grad_input(N, C_in, H_in, W_in);
-
     const size_t in_size = static_cast<size_t>(N) * C_in * H_in * W_in;
     const size_t out_size = static_cast<size_t>(N) * out_channels * H_out * W_out;
     const size_t w_size = static_cast<size_t>(out_channels) * C_in * kernel_size * kernel_size;
     const size_t b_size = static_cast<size_t>(out_channels);
 
-    float *d_input = nullptr, *d_weights = nullptr, *d_biases = nullptr;
-    float *d_grad_out = nullptr, *d_grad_in = nullptr, *d_grad_w = nullptr, *d_grad_b = nullptr;
-
-    CUDA_CHECK(cudaMalloc(&d_input, in_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_weights, w_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_biases, b_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_grad_out, out_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_grad_in, in_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_grad_w, w_size * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&d_grad_b, b_size * sizeof(float)));
-
-    CUDA_CHECK(cudaMemset(d_grad_in, 0, in_size * sizeof(float)));
-    CUDA_CHECK(cudaMemset(d_grad_w, 0, w_size * sizeof(float)));
-    CUDA_CHECK(cudaMemset(d_grad_b, 0, b_size * sizeof(float)));
-
-    try
+    // Ensure cached_input and grad_output are on GPU
+    Tensor cached_input_gpu = cached_input;
+    if (!cached_input_gpu.is_gpu())
     {
-        CUDA_CHECK(cudaMemcpy(d_input, cached_input.data(), in_size * sizeof(float), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_weights, weights.data(), w_size * sizeof(float), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_biases, biases.data(), b_size * sizeof(float), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(d_grad_out, grad_output.data(), out_size * sizeof(float), cudaMemcpyHostToDevice));
-
-        // Launch kernels
-        int threads = 256;
-        int blocks_b = (out_channels + threads - 1) / threads;
-        conv2d_bias_grad_kernel<<<blocks_b, threads>>>(d_grad_out, d_grad_b, N, out_channels, H_out, W_out);
-        CUDA_CHECK(cudaGetLastError());
-
-        int total_w = static_cast<int>(w_size);
-        int blocks_w = (total_w + threads - 1) / threads;
-        conv2d_weight_grad_kernel<<<blocks_w, threads>>>(d_input, d_grad_out, d_grad_w,
-                                                         N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
-        CUDA_CHECK(cudaGetLastError());
-
-        int total_in = static_cast<int>(in_size);
-        int blocks_in = (total_in + threads - 1) / threads;
-        conv2d_input_grad_kernel<<<blocks_in, threads>>>(d_grad_out, d_weights, d_grad_in,
-                                                         N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
-        CUDA_CHECK(cudaGetLastError());
-        CUDA_CHECK(cudaDeviceSynchronize());
-
-        // Copy back to host tensors
-        CUDA_CHECK(cudaMemcpy(grad_input.data(), d_grad_in, in_size * sizeof(float), cudaMemcpyDeviceToHost));
-        CUDA_CHECK(cudaMemcpy(grad_weights.data(), d_grad_w, w_size * sizeof(float), cudaMemcpyDeviceToHost));
-        CUDA_CHECK(cudaMemcpy(grad_biases.data(), d_grad_b, b_size * sizeof(float), cudaMemcpyDeviceToHost));
-
-        // Free device memory
-        cudaFree(d_input);
-        cudaFree(d_weights);
-        cudaFree(d_biases);
-        cudaFree(d_grad_out);
-        cudaFree(d_grad_in);
-        cudaFree(d_grad_w);
-        cudaFree(d_grad_b);
-
-        return grad_input;
+        cached_input_gpu.to_gpu();
     }
-    catch (...)
+
+    Tensor grad_output_gpu = grad_output;
+    if (!grad_output_gpu.is_gpu())
     {
-        cudaFree(d_input);
-        cudaFree(d_weights);
-        cudaFree(d_biases);
-        cudaFree(d_grad_out);
-        cudaFree(d_grad_in);
-        cudaFree(d_grad_w);
-        cudaFree(d_grad_b);
-        throw;
+        grad_output_gpu.to_gpu();
     }
+
+    // Ensure weights on GPU
+    if (!weights.is_gpu())
+    {
+        weights.to_gpu();
+    }
+
+    // Ensure grad tensors are on GPU
+    if (!grad_weights.is_gpu())
+    {
+        grad_weights.to_gpu();
+    }
+    if (!grad_biases.is_gpu())
+    {
+        grad_biases.to_gpu();
+    }
+
+    // Create grad_input on GPU
+    Tensor grad_input(N, C_in, H_in, W_in, true);
+    grad_input.to_gpu();
+
+    // Zero gradients on device
+    CUDA_CHECK(cudaMemset(grad_input.data(), 0, in_size * sizeof(float)));
+    CUDA_CHECK(cudaMemset(grad_weights.data(), 0, w_size * sizeof(float)));
+    CUDA_CHECK(cudaMemset(grad_biases.data(), 0, b_size * sizeof(float)));
+
+    // Launch kernels using device pointers directly
+    int threads = 256;
+    int blocks_b = (out_channels + threads - 1) / threads;
+    conv2d_bias_grad_kernel<<<blocks_b, threads>>>(
+        grad_output_gpu.data(), grad_biases.data(),
+        N, out_channels, H_out, W_out);
+    CUDA_CHECK(cudaGetLastError());
+
+    int total_w = static_cast<int>(w_size);
+    int blocks_w = (total_w + threads - 1) / threads;
+    conv2d_weight_grad_kernel<<<blocks_w, threads>>>(
+        cached_input_gpu.data(), grad_output_gpu.data(), grad_weights.data(),
+        N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
+    CUDA_CHECK(cudaGetLastError());
+
+    int total_in = static_cast<int>(in_size);
+    int blocks_in = (total_in + threads - 1) / threads;
+    conv2d_input_grad_kernel<<<blocks_in, threads>>>(
+        grad_output_gpu.data(), weights.data(), grad_input.data(),
+        N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    return grad_input;
 }
