@@ -30,6 +30,7 @@ namespace Autoencoder
 
 		Tensor forward(const Tensor &input);
 		Tensor encode(const Tensor &input);
+		Tensor decode(const Tensor &input);
 		void backward(const Tensor &gradient);
 
 		virtual void update(float learning_rate) = 0;

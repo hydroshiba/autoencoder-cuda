@@ -1,4 +1,5 @@
 #include <iostream>
+
 #include "header/trainer.hpp"
 #include "header/dataset.hpp"
 #include "header/autoencoder.hpp"

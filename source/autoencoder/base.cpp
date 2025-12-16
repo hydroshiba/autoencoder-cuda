@@ -52,6 +52,12 @@ Tensor Base::encode(const Tensor &input)
 	return forward_encode(input);
 }
 
+Tensor Base::decode(const Tensor &input)
+{
+    return forward_decode(input);
+}
+
+
 void Base::backward(const Tensor &gradient)
 {
 	backward_encode(backward_decode(gradient));
