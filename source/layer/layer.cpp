@@ -1,4 +1,5 @@
 #include "layer.hpp"
+#include <iostream>
 
 void Layer::to_gpu()
 {
@@ -11,13 +12,30 @@ void Layer::to_gpu()
 
 void Layer::update(float learning_rate)
 {
+    // Skip update if no parameters to update
+    if (weights.size() == 0 && biases.size() == 0)
+    {
+        return;
+    }
+
     // Update weights and biases using gradients; dispatch to GPU when tensors reside on device
     const bool use_gpu = weights.is_gpu() && grad_weights.is_gpu() && biases.is_gpu() && grad_biases.is_gpu();
 
     if (use_gpu)
     {
-        sgd_update_device(weights.data(), grad_weights.data(), learning_rate, weights.size());
-        sgd_update_device(biases.data(), grad_biases.data(), learning_rate, biases.size());
+        std::cout << "[Layer::update] GPU mode, weights.size=" << weights.size() << ", biases.size=" << biases.size() << std::endl;
+        if (weights.size() > 0)
+        {
+            std::cout << "[Layer::update] Updating weights..." << std::endl;
+            sgd_update_device(weights.data(), grad_weights.data(), learning_rate, weights.size());
+            std::cout << "[Layer::update] Weights updated" << std::endl;
+        }
+        if (biases.size() > 0)
+        {
+            std::cout << "[Layer::update] Updating biases..." << std::endl;
+            sgd_update_device(biases.data(), grad_biases.data(), learning_rate, biases.size());
+            std::cout << "[Layer::update] Biases updated" << std::endl;
+        }
     }
     else
     {

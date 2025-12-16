@@ -34,40 +34,66 @@ __global__ void relu_backward_kernel(const float *input, float *grad, int size)
 	}
 }
 
+__global__ void relu_backward_kernel(const float *input, const float *grad_output, float *grad_input, int size)
+{
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < size)
+	{
+		grad_input[i] = (input[i] > 0.0f) ? grad_output[i] : 0.0f;
+	}
+}
+
 Tensor ReLU::forward_gpu(const Tensor &input)
 {
 	cached_input = input;
-	Tensor output(input);
-	output = output.to_gpu();
+
+	// Ensure input is on GPU
+	Tensor input_gpu = input;
+	if (!input_gpu.is_gpu())
+	{
+		input_gpu.to_gpu();
+	}
+
+	// Create output on GPU
+	Tensor output(input.batch(), input.channels(), input.height(), input.width(), true);
+	output.to_gpu();
 
 	dim3 blockSize(256);
 	dim3 gridSize((output.size() + blockSize.x - 1) / blockSize.x);
-	relu_forward_kernel<<<gridSize, blockSize>>>(output.data(), output.data(), output.size());
+	relu_forward_kernel<<<gridSize, blockSize>>>(input_gpu.data(), output.data(), output.size());
 
-	cudaDeviceSynchronize();
 	CHECK(cudaGetLastError());
+	CHECK(cudaDeviceSynchronize());
 
 	return output;
 }
 
 Tensor ReLU::backward_gpu(const Tensor &grad_output)
 {
-	Tensor grad_input(grad_output);
-	grad_input = grad_input.to_gpu();
+	// Ensure grad_output is on GPU
+	Tensor grad_output_gpu = grad_output;
+	if (!grad_output_gpu.is_gpu())
+	{
+		grad_output_gpu.to_gpu();
+	}
 
-	// Ensure cached_input is on device for kernel access
+	// Ensure cached_input is on GPU
 	Tensor cached_on_gpu = cached_input;
 	if (!cached_on_gpu.is_gpu())
 	{
 		cached_on_gpu.to_gpu();
 	}
 
+	// Create grad_input on GPU
+	Tensor grad_input(grad_output.batch(), grad_output.channels(), grad_output.height(), grad_output.width(), true);
+	grad_input.to_gpu();
+
 	dim3 blockSize(256);
 	dim3 gridSize((grad_input.size() + blockSize.x - 1) / blockSize.x);
-	relu_backward_kernel<<<gridSize, blockSize>>>(cached_on_gpu.data(), grad_input.data(), grad_input.size());
+	relu_backward_kernel<<<gridSize, blockSize>>>(cached_on_gpu.data(), grad_output_gpu.data(), grad_input.data(), grad_input.size());
 
-	cudaDeviceSynchronize();
 	CHECK(cudaGetLastError());
+	CHECK(cudaDeviceSynchronize());
 
 	return grad_input;
 }

@@ -15,26 +15,36 @@ GPU::GPU() : Base()
 
 void GPU::update(float learning_rate)
 {
-	for (const auto &layer : layers)
+	std::cout << "[GPU::update] Starting update for " << layers.size() << " layers" << std::endl;
+	for (size_t i = 0; i < layers.size(); ++i)
 	{
-		layer->update(learning_rate);
+		std::cout << "[GPU::update] Updating layer " << i << std::endl;
+		layers[i]->update(learning_rate);
+		std::cout << "[GPU::update] Layer " << i << " updated" << std::endl;
 	}
+	std::cout << "[GPU::update] All layers updated" << std::endl;
 }
 
 Tensor GPU::forward_encode(const Tensor &input)
 {
+	std::cout << "[GPU] forward_encode start" << std::endl;
 	Tensor x = Tensor(input).to_gpu();
 	for (int i = 0; i <= encode_layer; ++i)
 	{
+		std::cout << "[GPU] forward layer " << i << " input(NCHW)=("
+				  << x.batch() << "," << x.channels() << "," << x.height() << "," << x.width() << ")" << std::endl;
 		x = layers[i]->forward_gpu(x);
 	}
 	return x;
 }
 Tensor GPU::forward_decode(const Tensor &input)
 {
+	std::cout << "[GPU] forward_decode start" << std::endl;
 	Tensor x = Tensor(input).to_gpu();
 	for (int i = encode_layer + 1; i < layers.size(); ++i)
 	{
+		std::cout << "[GPU] forward layer " << i << " input(NCHW)=("
+				  << x.batch() << "," << x.channels() << "," << x.height() << "," << x.width() << ")" << std::endl;
 		x = layers[i]->forward_gpu(x);
 	}
 	return x;

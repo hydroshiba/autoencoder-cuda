@@ -1,0 +1,47 @@
+Tensor ReLU::forward_gpu(const Tensor &input)
+{
+    cached_input = input;
+    
+    // Create output on GPU to match input residency
+    Tensor output(input.batch(), input.channels(), input.height(), input.width(), true);
+    output.to_gpu();
+    
+    // Ensure input is on GPU
+    Tensor input_gpu = input;
+    if (!input_gpu.is_gpu()) input_gpu.to_gpu();
+
+    dim3 blockSize(256);
+    dim3 gridSize((output.size() + blockSize.x - 1) / blockSize.x);
+    relu_forward_kernel<<<gridSize, blockSize>>>(input_gpu.data(), output.data(), static_cast<int>(output.size()));
+
+    cudaDeviceSynchronize();
+    CHECK(cudaGetLastError());
+
+    return output;
+}
+
+Tensor ReLU::backward_gpu(const Tensor &grad_output)
+{
+    // Create grad_input on GPU
+    Tensor grad_input(grad_output.batch(), grad_output.channels(), grad_output.height(), grad_output.width(), true);
+    grad_input.to_gpu();
+
+    // Ensure cached_input and grad_output are on device
+    Tensor cached_on_gpu = cached_input;
+    if (!cached_on_gpu.is_gpu()) cached_on_gpu.to_gpu();
+    
+    Tensor grad_out_gpu = grad_output;
+    if (!grad_out_gpu.is_gpu()) grad_out_gpu.to_gpu();
+
+    // Copy grad_output to grad_input first
+    CUDA_CHECK(cudaMemcpy(grad_input.data(), grad_out_gpu.data(), grad_input.size() * sizeof(float), cudaMemcpyDeviceToDevice));
+
+    dim3 blockSize(256);
+    dim3 gridSize((grad_input.size() + blockSize.x - 1) / blockSize.x);
+    relu_backward_kernel<<<gridSize, blockSize>>>(cached_on_gpu.data(), grad_input.data(), static_cast<int>(grad_input.size()));
+
+    cudaDeviceSynchronize();
+    CHECK(cudaGetLastError());
+
+    return grad_input;
+}
