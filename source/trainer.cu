@@ -4,15 +4,16 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <chrono>
 
 #include <cuda_runtime.h>
 
 /* ================= CUDA KERNEL ================= */
 
 __global__ void mse_loss_kernel(
-    const float* output,
-    const float* target,
-    float* loss,
+    const float *output,
+    const float *target,
+    float *loss,
     int N)
 {
     __shared__ float cache[256];
@@ -42,9 +43,9 @@ __global__ void mse_loss_kernel(
 }
 
 __global__ void mse_grad_kernel(
-    const float* output,
-    const float* input,
-    float* grad,
+    const float *output,
+    const float *input,
+    float *grad,
     int N,
     float scale)
 {
@@ -94,8 +95,8 @@ float Trainer::compute_loss(const Tensor &output, const Tensor &target)
     if (!use_gpu)
     {
         float loss = 0.0f;
-        const float* out = output.data();
-        const float* tgt = target.data();
+        const float *out = output.data();
+        const float *tgt = target.data();
 
         for (int i = 0; i < N; ++i)
         {
@@ -105,7 +106,7 @@ float Trainer::compute_loss(const Tensor &output, const Tensor &target)
         return loss / N;
     }
     /* -------- GPU -------- */
-    float* d_loss;
+    float *d_loss;
     float h_loss = 0.0f;
 
     cudaMalloc(&d_loss, sizeof(float));
@@ -128,21 +129,40 @@ float Trainer::compute_loss(const Tensor &output, const Tensor &target)
     return h_loss / N;
 }
 
+/* ================= TRAIN LOOP ================= */
+
 void Trainer::train()
 {
+    log_file.open("training_log.csv");
+    log_file << "epoch,loss,time_ms\n";
+
     std::cout << "[Trainer] Start training..." << std::endl;
 
     for (int e = 0; e < epochs; ++e)
     {
-        train_one_epoch(e);
+        float epoch_time = 0.0f;
+        float avg_loss = train_one_epoch(e, epoch_time);
+
+        log_file << e + 1 << "," << avg_loss << "," << epoch_time << "\n";
     }
+
+    log_file.close();
 
     std::cout << "[Trainer] Training completed." << std::endl;
 }
 
-void Trainer::train_one_epoch(int epoch_idx)
+float Trainer::train_one_epoch(int epoch_idx, float &epoch_time_ms)
 {
-    const int num_samples = data_loader->num_train();
+    using clock = std::chrono::high_resolution_clock;
+    auto t_start = clock::now();
+
+    int num_samples;
+
+    if (use_gpu)
+        num_samples = data_loader->num_train();
+    else
+        num_samples = 160;
+
     const int num_batches = (num_samples + batch_size - 1) / batch_size;
 
     std::cout << "Number of Batches: " << num_batches << std::endl;
@@ -192,10 +212,8 @@ void Trainer::train_one_epoch(int epoch_idx)
             cudaError_t err = cudaGetLastError();
             if (err != cudaSuccess)
             {
-                std::cerr << "CUDA error: "
-                          << cudaGetErrorString(err)
-                          << std::endl;
-                return;
+                std::cerr << "CUDA error: "  << cudaGetErrorString(err)  << std::endl;
+                return 0;
             }
         }
         else
@@ -227,7 +245,14 @@ void Trainer::train_one_epoch(int epoch_idx)
         }
     }
 
-    std::cout << ">>> Epoch " << epoch_idx + 1 << " completed | Avg loss = " << total_loss / num_batches << std::endl;
+    auto t_end = clock::now();
+    epoch_time_ms = std::chrono::duration<float, std::milli>(t_end - t_start).count();
+
+    float avg_loss = total_loss / num_batches;
+
+    std::cout << ">>> Epoch " << epoch_idx + 1 << " | Loss = " << avg_loss << " | Time = " << epoch_time_ms << " ms" << std::endl;
+
+    return avg_loss;
 }
 
 void Trainer::save_checkpoint(const std::string &path)
