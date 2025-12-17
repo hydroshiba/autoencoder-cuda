@@ -67,11 +67,7 @@ Tensor<Device::CPU> Conv2D<Device::CPU>::backward(const Tensor<Device::CPU> &gra
 	const int out_w = grad_output.width();
 
 	Tensor<Device::CPU> grad_input(N, in_channels, H, W);
-	
-	// Zero initialize gradients
 	grad_input.fill(0.0f);
-	grad_weights.fill(0.0f);
-	grad_biases.fill(0.0f);
 
 	// Bias gradient
 	for(int n = 0; n < N; ++n) {

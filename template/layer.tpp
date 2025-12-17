@@ -14,6 +14,12 @@ std::vector<Tensor<Tag>*> Weighted<Tag>::gradients() {
 	return {&grad_weights, &grad_biases};
 }
 
+template <typename Tag>
+void Weighted<Tag>::clear_gradients() {
+	grad_weights.fill(0.0f);
+	grad_biases.fill(0.0f);
+}
+
 // Convolutional 2D layer generic method implementations
 
 template <typename Tag>

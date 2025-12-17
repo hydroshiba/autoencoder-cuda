@@ -24,6 +24,7 @@ public:
 	virtual std::vector<Tensor<Tag>*> parameters() { return {}; }
 	virtual std::vector<Tensor<Tag>*> gradients() { return {}; }
 
+	virtual void clear_gradients() {}
 	virtual ~Base() = default;
 
 	// For fuck sake, kill yourself NVCC
@@ -51,6 +52,7 @@ public:
 	std::vector<Tensor<Tag>*> parameters() override;
 	std::vector<Tensor<Tag>*> gradients() override;
 
+	void clear_gradients() override;
 	virtual ~Weighted() = default;
 };
 

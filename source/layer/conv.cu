@@ -176,8 +176,6 @@ Tensor<Device::GPU> Conv2D<Device::GPU>::backward(const Tensor<Device::GPU> &gra
 	// Initialize gradients to 0
 	Tensor<Device::GPU> grad_input(N, C, H, W);
 	grad_input.fill(0.0f);
-	grad_weights.fill(0.0f);
-	grad_biases.fill(0.0f);
 
 	int threads = Config::Conv2D::block_width * Config::Conv2D::block_height;
 	
