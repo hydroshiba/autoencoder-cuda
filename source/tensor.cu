@@ -18,6 +18,16 @@ __global__ void distribute_kernel(float* data, size_t size, float mean, float st
 	}
 }
 
+__global__ void add_kernel(float* a, const float* b, size_t size) {
+	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	if(i < size) a[i] += b[i];
+}
+
+__global__ void sub_kernel(float* a, const float* b, size_t size) {
+	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	if(i < size) a[i] -= b[i];
+}
+
 // Tensor GPU specialization implementations
 
 template <>
@@ -122,6 +132,51 @@ void Tensor<Device::GPU>::distribute(float mean, float std_dev) {
 	distribute_kernel<<<blocks, threads>>>(data_, total_size, mean, std_dev, seed);
 	checkCUDA(cudaGetLastError());
 	checkCUDA(cudaDeviceSynchronize());
+}
+
+template <>
+Tensor<Device::GPU>& Tensor<Device::GPU>::operator+=(const Tensor &other) {
+	if(this->batches_ != other.batches_ ||
+	   this->channels_ != other.channels_ ||
+	   this->height_ != other.height_ ||
+	   this->width_ != other.width_)
+		throw std::invalid_argument("Tensor shapes do not match for addition");
+
+	size_t total_size = this->size();
+	size_t threads = Config::Tensor::block_width * Config::Tensor::block_height;
+	size_t blocks = (total_size + threads - 1) / threads;
+
+	add_kernel<<<blocks, threads>>>(this->data_, other.data_, total_size);
+	checkCUDA(cudaGetLastError());
+	checkCUDA(cudaDeviceSynchronize());
+
+	return *this;
+}
+
+template <>
+Tensor<Device::GPU>& Tensor<Device::GPU>::operator-=(const Tensor &other) {
+	if(this->batches_ != other.batches_ ||
+	   this->channels_ != other.channels_ ||
+	   this->height_ != other.height_ ||
+	   this->width_ != other.width_)
+		throw std::invalid_argument("Tensor shapes do not match for subtraction");
+
+	size_t total_size = this->size();
+	size_t threads = Config::Tensor::block_width * Config::Tensor::block_height;
+	size_t blocks = (total_size + threads - 1) / threads;
+
+	sub_kernel<<<blocks, threads>>>(this->data_, other.data_, total_size);
+	checkCUDA(cudaGetLastError());
+	checkCUDA(cudaDeviceSynchronize());
+	
+	return *this;
+}
+
+template <>
+Tensor<Device::GPU>& Tensor<Device::GPU>::operator*=(float scalar) {
+	auto multiply = [=] __device__ (float x) { return x * scalar; };
+	this->transform(multiply);
+	return *this;
 }
 
 // Disable GPU memory acess from Host

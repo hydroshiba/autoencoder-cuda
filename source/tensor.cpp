@@ -92,3 +92,34 @@ void Tensor<Device::CPU>::distribute(float mean, float std_dev) {
 		data_[i] = (Random::box_muller(rands) * std_dev) + mean;
 	}
 }
+
+
+template <>
+Tensor<Device::CPU>& Tensor<Device::CPU>::operator+=(const Tensor &other) {
+	if(this->batches_ != other.batches_ ||
+	   this->channels_ != other.channels_ ||
+	   this->height_ != other.height_ ||
+	   this->width_ != other.width_)
+		throw std::invalid_argument("Tensor shapes do not match for addition");
+
+	for(size_t i = 0; i < this->size(); ++i) this->data_[i] += other.data_[i];
+	return *this;
+}
+
+template <>
+Tensor<Device::CPU>& Tensor<Device::CPU>::operator-=(const Tensor &other) {
+	if(this->batches_ != other.batches_ ||
+	   this->channels_ != other.channels_ ||
+	   this->height_ != other.height_ ||
+	   this->width_ != other.width_)
+		throw std::invalid_argument("Tensor shapes do not match for subtraction");
+
+	for(size_t i = 0; i < this->size(); ++i) this->data_[i] -= other.data_[i];
+	return *this;
+}
+
+template <>
+Tensor<Device::CPU>& Tensor<Device::CPU>::operator*=(float scalar) {
+	for(size_t i = 0; i < this->size(); ++i) this->data_[i] *= scalar;
+	return *this;
+}

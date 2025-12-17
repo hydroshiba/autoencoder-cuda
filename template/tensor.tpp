@@ -122,3 +122,29 @@ void Tensor<Tag>::transform(Function func) {
 		checkCUDA(cudaGetLastError());
 	}
 }
+
+template <typename Tag>
+Tensor<Tag> Tensor<Tag>::operator+(const Tensor &other) const {
+	Tensor<Tag> result = *this;
+	result += other;
+	return result;
+}
+
+template <typename Tag>
+Tensor<Tag> Tensor<Tag>::operator-(const Tensor &other) const {
+	Tensor<Tag> result = *this;
+	result -= other;
+	return result;
+}
+
+template <typename Tag>
+Tensor<Tag> Tensor<Tag>::operator*(float scalar) const {
+	Tensor<Tag> result = *this;
+	result *= scalar;
+	return result;
+}
+
+template <typename Tag>
+Tensor<Tag> operator*(float scalar, const Tensor<Device::CPU> &tensor) {
+	return tensor * scalar;
+}
