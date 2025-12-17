@@ -26,6 +26,8 @@ public:
 
     int num_train() const;
     int num_test() const;
+
+    unsigned short get_train_label(int index) const;
 };
 
 #endif // DATASET_HPP

@@ -241,3 +241,10 @@ Tensor DataLoader::get_batch(const int &batch_idx, const int &batch_size)
 
     return batch;
 }
+
+unsigned short DataLoader::get_train_label(int index) const
+{
+    if (index < 0 || index >= (int)train_labels.size())
+        throw std::out_of_range("train label index out of range");
+    return train_labels[index];
+}

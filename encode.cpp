@@ -102,16 +102,29 @@ int main()
         Tensor z = model.encode(batch);
         z.to_cpu();
 
-        feat_out.write(
-            reinterpret_cast<char*>(z.data()),
-            z.size() * sizeof(float)
-        );
+        z.to_cpu();
+
+        int N = z.batch();
+        int C = z.channels(); // 128
+        int H = z.height();   // 8
+        int W = z.width();    // 8
+        int D = C * H * W;    // 8192
+
+        const float *z_data = z.data();
+
+        for (int n = 0; n < N; ++n)
+        {
+            const float *sample_ptr = z_data + n * D;
+
+            feat_out.write(
+                reinterpret_cast<const char *>(sample_ptr),
+                D * sizeof(float));
+        }
 
         for (int j = 0; j < z.batch(); ++j)
         {
-            unsigned short lbl =
-                loader.get_train_label(i * batch_size + j);
-            label_out.write(reinterpret_cast<char*>(&lbl), sizeof(lbl));
+            unsigned short lbl = loader.get_train_label(i * batch_size + j);
+            label_out.write(reinterpret_cast<char *>(&lbl), sizeof(lbl));
         }
     }
 
