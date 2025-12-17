@@ -5,10 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "config.hpp"
 #include "utils/device.hpp"
-
-#define TENSOR_BLOCK_W 16
-#define TENSOR_BLOCK_H 16
 
 template <typename Tag>
 class Tensor {
@@ -43,14 +41,11 @@ public:
 
 	float& operator()(size_t n, size_t c, size_t h, size_t w);
 	const float& operator()(size_t n, size_t c, size_t h, size_t w) const;
-
-	template <int BLOCK_W = TENSOR_BLOCK_W, int BLOCK_H = TENSOR_BLOCK_H>
+	
 	void fill(float value);
-
-	template <int BLOCK_W = TENSOR_BLOCK_W, int BLOCK_H = TENSOR_BLOCK_H>
 	void distribute(float mean, float std_dev, uint64_t seed = 0);
 
-	template <int BLOCK_W = TENSOR_BLOCK_W, int BLOCK_H = TENSOR_BLOCK_H, typename Function>
+	template <typename Function>
 	void transform(Function func);
 
 	~Tensor();

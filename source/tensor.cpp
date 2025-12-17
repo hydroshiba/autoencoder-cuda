@@ -2,7 +2,7 @@
 #include "utils/error.cuh"
 #include "utils/random.cuh"
 
-// CPU specialization implementations
+// Tensor CPU specialization implementations
 
 template <>
 Tensor<Device::CPU>::Tensor(size_t batches, size_t channels, size_t height, size_t width) :
@@ -75,4 +75,18 @@ Tensor<Device::CPU>& Tensor<Device::CPU>::operator=(const Tensor<Device::GPU>& o
 	checkCUDA(cudaMemcpy(data_, other.data_, other.size() * sizeof(float), cudaMemcpyDeviceToHost));
 
 	return *this;
+}
+
+template <>
+void Tensor<Device::CPU>::fill(float value) {
+	std::fill(data_, data_ + size(), value);
+}
+
+template <>
+void Tensor<Device::CPU>::distribute(float mean, float std_dev, uint64_t seed) {
+	for(size_t i = 0; i < size(); ++i) {
+		uint64_t state = seed + i;
+		uint64_t rands[2] = {Random::splitmix64(state), Random::splitmix64(state)};
+		data_[i] = (Random::box_muller(rands) * std_dev) + mean;
+	}
 }

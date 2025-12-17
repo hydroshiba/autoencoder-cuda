@@ -2,7 +2,7 @@
 #include "utils/error.cuh"
 #include "utils/random.cuh"
 
-// Tensor kernels
+// Tensor GPU kernels
 
 __global__ void fill_kernel(float* data, size_t size, float value) {
 	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -18,7 +18,7 @@ __global__ void distribute_kernel(float* data, size_t size, float mean, float st
 	}
 }
 
-// GPU specialization implementations
+// Tensor GPU specialization implementations
 
 template <>
 Tensor<Device::GPU>::Tensor(size_t batches, size_t channels, size_t height, size_t width) :
@@ -98,6 +98,28 @@ Tensor<Device::GPU>& Tensor<Device::GPU>::operator=(const Tensor<Device::GPU>& o
 	checkCUDA(cudaMemcpy(data_, other.data_, other.size() * sizeof(float), cudaMemcpyDeviceToDevice));
 
 	return *this;
+}
+
+template <>
+void Tensor<Device::GPU>::fill(float value) {
+	size_t total_size = size();
+	size_t threads = Config::Tensor::block_width * Config::Tensor::block_height;
+	size_t blocks = (total_size + threads - 1) / threads;
+
+	fill_kernel<<<blocks, threads>>>(data_, total_size, value);
+	checkCUDA(cudaGetLastError());
+	checkCUDA(cudaDeviceSynchronize());
+}
+
+template <>
+void Tensor<Device::GPU>::distribute(float mean, float std_dev, uint64_t seed) {
+	size_t total_size = size();
+	size_t threads = Config::Tensor::block_width * Config::Tensor::block_height;
+	size_t blocks = (total_size + threads - 1) / threads;
+
+	distribute_kernel<<<blocks, threads>>>(data_, total_size, mean, std_dev, seed);
+	checkCUDA(cudaGetLastError());
+	checkCUDA(cudaDeviceSynchronize());
 }
 
 // Disable GPU memory acess from Host
