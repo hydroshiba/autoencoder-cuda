@@ -43,7 +43,7 @@ public:
 	const float& operator()(size_t n, size_t c, size_t h, size_t w) const;
 	
 	void fill(float value);
-	void distribute(float mean, float std_dev, uint64_t seed = 0);
+	void distribute(float mean, float std_dev);
 
 	template <typename Function>
 	void transform(Function func);

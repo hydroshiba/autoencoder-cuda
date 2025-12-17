@@ -112,7 +112,9 @@ void Tensor<Device::GPU>::fill(float value) {
 }
 
 template <>
-void Tensor<Device::GPU>::distribute(float mean, float std_dev, uint64_t seed) {
+void Tensor<Device::GPU>::distribute(float mean, float std_dev) {
+	uint64_t seed = static_cast<uint64_t>(Config::seed);
+	
 	size_t total_size = size();
 	size_t threads = Config::Tensor::block_width * Config::Tensor::block_height;
 	size_t blocks = (total_size + threads - 1) / threads;

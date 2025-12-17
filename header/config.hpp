@@ -16,6 +16,7 @@ public:
 	static size_t batch_size;
 	static size_t epochs;
 	static float learning_rate;
+	static int seed;
 
 	// Class-specific configurations
 

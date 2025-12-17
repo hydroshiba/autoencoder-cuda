@@ -3,6 +3,7 @@
 size_t Config::batch_size = 64;
 size_t Config::epochs = 20;
 float Config::learning_rate = 1e-3;
+int Config::seed = 0;
 
 size_t Config::Tensor::block_width = 16;
 size_t Config::Tensor::block_height = 16;
@@ -46,6 +47,9 @@ void Config::load(const std::string& path) {
 	try { learning_rate = config.at("learning_rate").get_value<float>(); }
 	catch (const fkyaml::exception& exception) {}
 
+	try { seed = config.at("seed").get_value<int>(); }
+	catch (const fkyaml::exception& exception) {}
+
 	// Load class-specific configurations
 
 	// Tensor
@@ -82,6 +86,7 @@ void Config::load(const std::string& path) {
 	LOG("Batch size:", batch_size);
 	LOG("Epochs:", epochs);
 	LOG("Learning rate:", learning_rate);
+	LOG("Seed:", seed);
 
 	LOG("Tensor block size:", std::to_string(Tensor::block_width) + "x" + std::to_string(Tensor::block_height));
 	LOG("Conv2D block size:", std::to_string(Conv2D::block_width) + "x" + std::to_string(Conv2D::block_height));
