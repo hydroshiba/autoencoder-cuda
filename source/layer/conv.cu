@@ -159,6 +159,7 @@ Tensor<Device::GPU> Conv2D<Device::GPU>::forward(const Tensor<Device::GPU> &inpu
 	checkCUDA(cudaGetLastError());
 	checkCUDA(cudaDeviceSynchronize());
 
+	std::visit([&](auto&& act) { forward_activate(output, act); }, this->activation);
 	return output;
 }
 
@@ -210,6 +211,7 @@ Tensor<Device::GPU> Conv2D<Device::GPU>::backward(const Tensor<Device::GPU> &gra
 	checkCUDA(cudaGetLastError());
 	checkCUDA(cudaDeviceSynchronize());
 
+	std::visit([&](auto&& act) { backward_activate(grad_input, act); }, this->activation);
 	return grad_input;
 }
 

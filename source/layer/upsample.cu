@@ -91,6 +91,7 @@ Tensor<Device::GPU> UpSample2D<Device::GPU>::forward(const Tensor<Device::GPU> &
 	checkCUDA(cudaGetLastError());
 	checkCUDA(cudaDeviceSynchronize());
 
+	std::visit([&](auto&& act) { forward_activate(output, act); }, this->activation);
 	return output;
 }
 
@@ -115,6 +116,7 @@ Tensor<Device::GPU> UpSample2D<Device::GPU>::backward(const Tensor<Device::GPU> 
 	checkCUDA(cudaGetLastError());
 	checkCUDA(cudaDeviceSynchronize());
 
+	std::visit([&](auto&& act) { backward_activate(grad_input, act); }, this->activation);
 	return grad_input;
 }
 

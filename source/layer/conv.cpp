@@ -53,6 +53,7 @@ Tensor<Device::CPU> Conv2D<Device::CPU>::forward(const Tensor<Device::CPU> &inpu
 		}
 	}
 
+	std::visit([&](auto&& act) { forward_activate(output, act); }, this->activation);
 	return output;
 }
 
@@ -120,6 +121,7 @@ Tensor<Device::CPU> Conv2D<Device::CPU>::backward(const Tensor<Device::CPU> &gra
 		}
 	}
 
+	std::visit([&](auto&& act) { backward_activate(grad_input, act); }, this->activation);
 	return grad_input;
 }
 
