@@ -1,75 +1,90 @@
 #include "layer.hpp"
+#include <algorithm>
+#include <limits>
 
-Tensor MaxPool2D::forward_cpu(const Tensor &input)
-{
-    cached_input = input;
+// Max Pooling 2D CPU specialization implementations
 
-    int N = input.batch();
-    int C = input.channels();
-    int H = input.height();
-    int W = input.width();  
+namespace Layer {
 
-    int out_h = H / pool_size;
-    int out_w = W / pool_size;
+template <>
+Tensor<Device::CPU> MaxPool2D<Device::CPU>::forward(const Tensor<Device::CPU> &input) {
+	this->cached_input = input;
 
-    Tensor output(N, C, out_h, out_w);
-    max_indices.resize(N * C * out_h * out_w);
+	const int N = input.batches();
+	const int C = input.channels();
+	const int H = input.height();
+	const int W = input.width();
 
-    for (int n = 0; n < N; n++)
-    {
-        for (int c = 0; c < C; c++)
-        {
-            for (int oh = 0; oh < out_h; oh++)
-            {
-                for (int ow = 0; ow < out_w; ow++)
-                {
+	const int out_h = H / pool_size;
+	const int out_w = W / pool_size;
 
-                    float max_val = -1e9;
-                    int max_idx = -1;
+	Tensor<Device::CPU> output(N, C, out_h, out_w);
+	this->mask = Tensor<Device::CPU>(N, C, out_h, out_w);
 
-                    for (int kh = 0; kh < pool_size; kh++)
-                    {
-                        for (int kw = 0; kw < pool_size; kw++)
-                        {
+	int n, c, oh, ow, kh, kw;
 
-                            int ih = oh * pool_size + kh;
-                            int iw = ow * pool_size + kw;
+	for(n = 0; n < N; ++n) {
+		for(c = 0; c < C; ++c) {
+			for(oh = 0; oh < out_h; ++oh) {
+				for(ow = 0; ow < out_w; ++ow) {
+					
+					float max_val = -std::numeric_limits<float>::infinity();
+					int max_idx = -1;
 
-                            int idx = input.index(n, c, ih, iw);
-                            float v = input(n, c, ih, iw);
+					// Base index for input window
+					int h_start = oh * pool_size;
+					int w_start = ow * pool_size;
 
-                            if (v > max_val)
-                            {
-                                max_val = v;
-                                max_idx = idx;
-                            }
-                        }
-                    }
+					for(kh = 0; kh < pool_size; ++kh) {
+						for(kw = 0; kw < pool_size; ++kw) {
+							
+							int ih = h_start + kh;
+							int iw = w_start + kw;
 
-                    output(n, c, oh, ow) = max_val;
-                    max_indices[output.index(n, c, oh, ow)] = max_idx;
-                }
-            }
-        }
-    }
+							// Manual flat index calculation to bypass operator() bounds check
+							int idx = ((n * C + c) * H + ih) * W + iw;
+							float v = input.data()[idx];
 
-    return output;
+							if(v > max_val) {
+								max_val = v;
+								max_idx = idx;
+							}
+						}
+					}
+
+					int out_idx = ((n * C + c) * out_h + oh) * out_w + ow;
+					output.data()[out_idx] = max_val;
+					// Store index as float in mask tensor
+					mask.data()[out_idx] = static_cast<float>(max_idx);
+				}
+			}
+		}
+	}
+
+	return output;
 }
 
-Tensor MaxPool2D::backward_cpu(const Tensor &grad_output)
-{
-    Tensor grad_input = Tensor(cached_input.batch(), cached_input.channels(),
-                                cached_input.height(), cached_input.width());
+template <>
+Tensor<Device::CPU> MaxPool2D<Device::CPU>::backward(const Tensor<Device::CPU> &grad_output) {
+	const int N = cached_input.batches();
+	const int C = cached_input.channels();
+	const int H = cached_input.height();
+	const int W = cached_input.width();
+	
+	const int out_h = grad_output.height();
+	const int out_w = grad_output.width();
 
-    std::fill(grad_input.data(),
-              grad_input.data() + grad_input.size(),
-              0.0f);
+	Tensor<Device::CPU> grad_input(N, C, H, W);
+	grad_input.fill(0.0f);
 
-    for (size_t i = 0; i < max_indices.size(); i++)
-    {
-        int idx = max_indices[i];
-        grad_input.data()[idx] += grad_output.data()[i];
-    }
+	int total_output_elements = N * C * out_h * out_w;
 
-    return grad_input;
+	for(int i = 0; i < total_output_elements; ++i) {
+		int in_idx = static_cast<int>(mask.data()[i]);
+		grad_input.data()[in_idx] += grad_output.data()[i];
+	}
+
+	return grad_input;
+}
+
 }

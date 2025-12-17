@@ -1,129 +1,126 @@
 #include "layer.hpp"
+#include <algorithm>
 
-#include <cstddef>
-#include <cmath>
-#include <random>
-#include <stdexcept>
+// Convolutional 2D CPU specialization implementations
 
-namespace
-{
-    float kaiming_uniform_limit(int in_channels, int kernel_size)
-    {
-        if (in_channels <= 0 || kernel_size <= 0)
-        {
-            return 1.0f;
-        }
+namespace Layer {
 
-        const float fan_in = static_cast<float>(in_channels * kernel_size * kernel_size);
-        return std::sqrt(6.0f / fan_in);
-    }
+template <>
+Tensor<Device::CPU> Conv2D<Device::CPU>::forward(const Tensor<Device::CPU> &input) {
+	this->cached_input = input;
+
+	const int N = input.batches();
+	const int H = input.height();
+	const int W = input.width();
+
+	const int h_num = H + 2 * padding - filter_size;
+	const int w_num = W + 2 * padding - filter_size;
+	
+	const int out_h = h_num / stride + 1;
+	const int out_w = w_num / stride + 1;
+
+	Tensor<Device::CPU> output(N, out_channels, out_h, out_w);
+
+	for(int n = 0; n < N; ++n) {
+		for(int oc = 0; oc < out_channels; ++oc) {
+			float bias = biases.data()[oc];
+			
+			for(int oh = 0; oh < out_h; ++oh) {
+				for(int ow = 0; ow < out_w; ++ow) {
+					
+					float sum = bias;
+
+					for(int ic = 0; ic < in_channels; ++ic) {
+						for(int kh = 0; kh < filter_size; ++kh) {
+							for(int kw = 0; kw < filter_size; ++kw) {
+								
+								int ih = oh * stride + kh - padding;
+								int iw = ow * stride + kw - padding;
+
+								if(ih >= 0 && ih < H && iw >= 0 && iw < W) {
+									int in_idx = ((n * in_channels + ic) * H + ih) * W + iw;
+									int w_idx = ((oc * in_channels + ic) * filter_size + kh) * filter_size + kw;
+									sum += input.data()[in_idx] * weights.data()[w_idx];
+								}
+							}
+						}
+					}
+					
+					int out_idx = ((n * out_channels + oc) * out_h + oh) * out_w + ow;
+					output.data()[out_idx] = sum;
+				}
+			}
+		}
+	}
+
+	return output;
 }
 
-Conv2D::Conv2D(const int &in_ch, const int &out_ch, const int &k, const int &s, const int &p)
-    : in_channels(in_ch), out_channels(out_ch), kernel_size(k), stride(s), padding(p)
-{
-    if (in_channels <= 0 || out_channels <= 0)
-    {
-        throw std::invalid_argument("Conv2D requires positive channel counts");
-    }
-    if (kernel_size <= 0)
-    {
-        throw std::invalid_argument("Conv2D requires a positive kernel size");
-    }
-    if (stride <= 0)
-    {
-        throw std::invalid_argument("Conv2D stride must be positive");
-    }
-    if (padding < 0)
-    {
-        throw std::invalid_argument("Conv2D padding cannot be negative");
-    }
+template <>
+Tensor<Device::CPU> Conv2D<Device::CPU>::backward(const Tensor<Device::CPU> &grad_output) {
+	const int N = cached_input.batches();
+	const int H = cached_input.height();
+	const int W = cached_input.width();
 
-    weights.resize(out_channels, in_channels, kernel_size, kernel_size);
-    biases.resize(1, out_channels, 1, 1);
+	const int out_h = grad_output.height();
+	const int out_w = grad_output.width();
 
-    std::mt19937 rng(std::random_device{}());
-    const float limit = kaiming_uniform_limit(in_channels, kernel_size);
-    std::uniform_real_distribution<float> dist(-limit, limit);
+	Tensor<Device::CPU> grad_input(N, in_channels, H, W);
+	
+	// Zero initialize gradients
+	grad_input.fill(0.0f);
+	grad_weights.fill(0.0f);
+	grad_biases.fill(0.0f);
 
-    for (std::size_t idx = 0; idx < weights.size(); ++idx)
-    {
-        // weights(idx) = dist(rng);
-    }
-    for (int oc = 0; oc < out_channels; ++oc)
-    {
-        biases(0, oc, 0, 0) = 0.0f;
-    }
+	// Bias gradient
+	for(int n = 0; n < N; ++n) {
+		for(int oc = 0; oc < out_channels; ++oc) {
+			float bsum = 0.0f;
+			for(int oh = 0; oh < out_h; ++oh) {
+				for(int ow = 0; ow < out_w; ++ow) {
+					int go_idx = ((n * out_channels + oc) * out_h + oh) * out_w + ow;
+					bsum += grad_output.data()[go_idx];
+				}
+			}
+			grad_biases.data()[oc] += bsum;
+		}
+	}
+
+	// Weight and Input gradients
+	for(int n = 0; n < N; ++n) {
+		for(int oc = 0; oc < out_channels; ++oc) {
+			for(int oh = 0; oh < out_h; ++oh) {
+				for(int ow = 0; ow < out_w; ++ow) {
+					
+					int go_idx = ((n * out_channels + oc) * out_h + oh) * out_w + ow;
+					float go = grad_output.data()[go_idx];
+
+					for(int ic = 0; ic < in_channels; ++ic) {
+						for(int kh = 0; kh < filter_size; ++kh) {
+							for(int kw = 0; kw < filter_size; ++kw) {
+								
+								int ih = oh * stride + kh - padding;
+								int iw = ow * stride + kw - padding;
+
+								if(ih >= 0 && ih < H && iw >= 0 && iw < W) {
+									int in_idx = ((n * in_channels + ic) * H + ih) * W + iw;
+									int w_idx = ((oc * in_channels + ic) * filter_size + kh) * filter_size + kw;
+
+									// dW += input * grad_output
+									grad_weights.data()[w_idx] += cached_input.data()[in_idx] * go;
+
+									// dInput += weight * grad_output
+									grad_input.data()[in_idx] += weights.data()[w_idx] * go;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return grad_input;
 }
 
-Tensor Conv2D::forward_cpu(const Tensor &input)
-{
-    if (input.channels() != in_channels)
-    {
-        throw std::invalid_argument("Conv2D forward input channel mismatch");
-    }
-
-    const int batch_size = input.batch();
-    const int input_height = input.height();
-    const int input_width = input.width();
-
-    if (input_height <= 0 || input_width <= 0)
-    {
-        throw std::invalid_argument("Conv2D forward expects positive spatial dimensions");
-    }
-
-    const int numerator_h = input_height + 2 * padding - kernel_size;
-    const int numerator_w = input_width + 2 * padding - kernel_size;
-
-    if (numerator_h < 0 || numerator_w < 0)
-    {
-        throw std::invalid_argument("Conv2D configuration yields negative output dimensions");
-    }
-
-    if (numerator_h % stride != 0 || numerator_w % stride != 0)
-    {
-        throw std::invalid_argument("Conv2D stride does not divide the padded dimensions");
-    }
-
-    const int out_height = numerator_h / stride + 1;
-    const int out_width = numerator_w / stride + 1;
-
-    Tensor output(batch_size, out_channels, out_height, out_width);
-
-    for (int n = 0; n < batch_size; ++n)
-    {
-        for (int oc = 0; oc < out_channels; ++oc)
-        {
-            for (int oh = 0; oh < out_height; ++oh)
-            {
-                for (int ow = 0; ow < out_width; ++ow)
-                {
-                    float sum = biases(0, oc, 0, 0);
-
-                    for (int ic = 0; ic < in_channels; ++ic)
-                    {
-                        for (int kh = 0; kh < kernel_size; ++kh)
-                        {
-                            for (int kw = 0; kw < kernel_size; ++kw)
-                            {
-                                const int ih = oh * stride + kh - padding;
-                                const int iw = ow * stride + kw - padding;
-
-                                if (ih < 0 || ih >= input_height || iw < 0 || iw >= input_width)
-                                {
-                                    continue;
-                                }
-
-                                sum += input(n, ic, ih, iw) * weights(oc, ic, kh, kw);
-                            }
-                        }
-                    }
-
-                    output(n, oc, oh, ow) = sum;
-                }
-            }
-        }
-    }
-
-    return output;
 }

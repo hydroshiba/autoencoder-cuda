@@ -13,7 +13,7 @@ set(CMAKE_CUDA_ARCHITECTURES 75)
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
 # Directories
-include_directories(header template)
+include_directories(lib header template)
 file(GLOB_RECURSE sources "source/*.cpp" "source/*.cu")
 set_source_files_properties(
 	${sources} 
@@ -42,7 +42,7 @@ target_compile_options(encode PRIVATE
 
 # Debug section
 
-file(GLOB_RECURSE debsrc "source/tensor.cu" "source/tensor.cpp")
+file(GLOB_RECURSE debsrc "source/tensor*" "source/layer/*.cpp" "source/layer/*.cu" "source/config.cpp")
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/debug.cpp")
 	add_executable(debug ${debsrc} "debug.cpp")

@@ -18,4 +18,4 @@ constexpr bool IsTag_v = IsTag<T>::value;
 
 }
 
-#endif // UTIL_HPP
+#endif // DEVICE_HPP
