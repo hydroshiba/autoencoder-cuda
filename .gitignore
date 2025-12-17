@@ -58,7 +58,7 @@ dataset/
 /test.cpp
 
 cifar-10-batches-bin
-!unzip cifar-10-batches-bin.zip
+cifar-10-batches-bin.zip
 cuML.zip
 header.zip
 model.zip
