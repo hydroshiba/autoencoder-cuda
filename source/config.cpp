@@ -27,7 +27,7 @@ void Config::load(const std::string& path) {
 	std::ifstream fin(path);
 	
 	if(!fin) {
-		LOG("Failed to open configuration file: ", path);
+		LOG("Failed to open configuration file:", path);
 		LOG("Using default configuration values.");
 		return;
 	}
@@ -77,7 +77,7 @@ void Config::load(const std::string& path) {
 	catch (const fkyaml::exception& exception) {}
 
 	// Log loaded configuration
-	LOG("Configuration loaded from: ", path);
+	LOG("Configuration loaded from:", path);
 
 	LOG("Batch size:", batch_size);
 	LOG("Epochs:", epochs);
