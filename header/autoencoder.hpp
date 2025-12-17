@@ -3,45 +3,46 @@
 
 #include <vector>
 #include <memory>
+#include <string>
 
 #include "layer.hpp"
+#include "config.hpp"
 
-namespace Autoencoder {
+template <typename Tag>
+class Autoencoder {
+	static_assert(Device::IsTag_v<Tag>, "Autoencoder tag must be Device::CPU or Device::GPU");
 
-class Base {
-protected:
-	std::vector<std::unique_ptr<Layer>> layers;
+private:
+	std::vector<std::unique_ptr<Layer::Base<Tag>>> layers;
 	int encode_layer = 0;
 
-	void add_layer(std::unique_ptr<Layer> layer);
+	// Internal helpers
+	Tensor<Tag> forward_encode(const Tensor<Tag> &input);
+	Tensor<Tag> forward_decode(const Tensor<Tag> &input);
 	
-	virtual Tensor forward_encode(const Tensor &input) = 0;
-	virtual Tensor forward_decode(const Tensor &input) = 0;
-
-	virtual Tensor backward_decode(const Tensor &gradient) = 0;
-	virtual Tensor backward_encode(const Tensor &gradient) = 0;
+	Tensor<Tag> backward_encode(const Tensor<Tag> &gradient);
+	Tensor<Tag> backward_decode(const Tensor<Tag> &gradient);
 
 public:
-	Base();
+	Autoencoder();
+	
 	void build();
+	void clear_gradients();
 
-	Tensor forward(const Tensor &input);
-	Tensor encode(const Tensor &input);
-	void backward(const Tensor &gradient);
+	// Forward / Backward API
+	Tensor<Tag> forward(const Tensor<Tag> &input);
+	Tensor<Tag> encode(const Tensor<Tag> &input);
+	Tensor<Tag> decode(const Tensor<Tag> &input);
+	void backward(const Tensor<Tag> &gradient);
+
+	// Expose layers for the Optimizer
+	std::vector<std::unique_ptr<Layer::Base<Tag>>>& get_layers();
+
+	// IO
+	void save(const std::string &file_path);
+	void load(const std::string &file_path);
 };
 
-class CPU: public Base {
-public:
-	void update(float learning_rate);
-};
+#include "autoencoder.tpp"
 
-class GPU: public Base {
-public:
-	GPU();
-	GPU(const Base &base);
-	void update(float learning_rate);
-};
-
-}
-
-#endif
+#endif // AUTOENCODER_HPP
