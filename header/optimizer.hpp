@@ -2,7 +2,6 @@
 #define OPTIMIZER_HPP
 
 #include "tensor.hpp"
-#include "autoencoder.hpp"
 
 namespace Optimizer {
 
