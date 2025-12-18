@@ -42,13 +42,10 @@ target_compile_options(encode PRIVATE
 
 # Debug section
 
-file(GLOB_RECURSE debsrc "source/tensor*" "source/layer/*.cpp" "source/layer/*.cu" "source/config.cpp")
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/debug.cpp")
-	add_executable(debug ${debsrc} "debug.cpp")
-	target_include_directories(debug PRIVATE header)
-	target_compile_options(debug PRIVATE
-		$<$<COMPILE_LANGUAGE:CUDA>: -O0 -g -lineinfo --extended-lambda --expt-relaxed-constexpr >
-		$<$<COMPILE_LANGUAGE:CXX>: -O0 -g >
-	)
-endif()
+# if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/debug.cpp")
+# 	add_executable(debug ${sources} "debug.cpp")
+# 	target_include_directories(debug PRIVATE header)
+# 	target_compile_options(debug PRIVATE
+# 		$<$<COMPILE_LANGUAGE:CUDA>: -lineinfo --extended-lambda --expt-relaxed-constexpr >
+# 	)
+# endif()

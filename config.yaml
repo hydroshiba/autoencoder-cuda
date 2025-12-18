@@ -1,0 +1,9 @@
+epochs: 2
+batch_size: 64
+learning_rate: 0.001
+tensor:
+  block_width: 16
+  block_height: 16
+
+# dataset_path: ./data/mnist.csv
+# model_save_path: ./models/autoencoder.model

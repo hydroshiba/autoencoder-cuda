@@ -2,32 +2,29 @@
 #define TRAINER_HPP
 
 #include <string>
+#include <fstream>
+
+#include "config.hpp"
 #include "autoencoder.hpp"
 #include "dataset.hpp"
+#include "loss.cuh"
 
-class Trainer
-{
+#include "utils/timer.cuh"
+
+class Trainer {
 private:
-    int epochs;
-    int batch_size;
-    float learning_rate;
-    bool use_gpu;
+    Timer timer;
 
-    Autoencoder::Base *model;
-    DataLoader *data_loader;
+    const size_t batch_size;
+    const size_t epochs;
+    const float learning_rate;
 
 public:
-    Trainer(Autoencoder::Base *model, DataLoader *data_loader, const std::string &config_path);
-
-    void load_config(const std::string &path);
-
-    void train();
-    void train_one_epoch(int epoch_idx);
-
-    float compute_loss(const Tensor &output, const Tensor &target);
-
-    void save_checkpoint(const std::string &path);
-    void load_checkpoint(const std::string &path);
+    Trainer() : batch_size(Config::batch_size), epochs(Config::epochs), learning_rate(Config::learning_rate) {}
+    template <typename Tag, typename Optimizer, typename Loss>
+    void fit(Autoencoder<Tag> &model, Dataset &dataset, Optimizer &optimizer, Loss loss = Loss::MSE);
 };
+
+#include "trainer.tpp"
 
 #endif
