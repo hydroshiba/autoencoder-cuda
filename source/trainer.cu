@@ -96,6 +96,10 @@ void Trainer::init_streams()
     size_t mem_per_stream = 200 * 1024 * 1024;  // 200MB estimate per stream
     int max_by_mem = static_cast<int>(free_mem / mem_per_stream / 2);
     num_streams = std::min(num_streams, max_by_mem);
+
+    // Ensure at least one stream to avoid empty allocations when memory is tight
+    if (num_streams < 1)
+        num_streams = 1;
     
     std::cout << "[Trainer] GPU: " << deviceProp.name << std::endl;
     std::cout << "[Trainer] SMs: " << deviceProp.multiProcessorCount << std::endl;
