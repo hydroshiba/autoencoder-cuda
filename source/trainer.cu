@@ -249,6 +249,7 @@ void Trainer::train()
         float avg_loss = train_one_epoch(e, epoch_time);
 
         log_file << e + 1 << "," << avg_loss << "," << epoch_time << "\n";
+        log_file.flush();
     }
 
     log_file.close();
@@ -256,7 +257,7 @@ void Trainer::train()
     std::cout << "[Trainer] Training completed." << std::endl;
 }
 
-float Trainer::train_one_epoch(int epoch_idx, float &epoch_time_ms)
+float Trainer::train_one_epoch(int epoch_idx, float &epoch_time_s)
 {
     using clock = std::chrono::high_resolution_clock;
     auto t_start = clock::now();
@@ -375,12 +376,11 @@ float Trainer::train_one_epoch(int epoch_idx, float &epoch_time_ms)
     }
 
     auto t_end = clock::now();
-    epoch_time_ms = std::chrono::duration<float, std::milli>(t_end - t_start).count();
+    epoch_time_s = std::chrono::duration<float>(t_end - t_start).count();
 
     float avg_loss = total_loss / num_batches;
 
-    std::cout << ">>> Epoch " << epoch_idx + 1 << " | Loss = " << avg_loss << " | Time = " << epoch_time_ms << " ms" << std::endl;
-
+    std::cout << ">>> Epoch " << epoch_idx + 1 << " | Loss = " << avg_loss << " | Time = " << epoch_time_s << " s" << std::endl;
     return avg_loss;
 }
 
