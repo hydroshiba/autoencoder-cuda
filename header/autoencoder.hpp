@@ -29,12 +29,12 @@ namespace Autoencoder
 		Base();
 		void build();
 
-		Tensor forward(const Tensor &input);
-		Tensor encode(const Tensor &input);
-		Tensor decode(const Tensor &input);
-		void backward(const Tensor &gradient);
+		Tensor forward(const Tensor &input, cudaStream_t stream = 0);
+		Tensor encode(const Tensor &input, cudaStream_t stream = 0);
+		Tensor decode(const Tensor &input, cudaStream_t stream = 0);
+		void backward(const Tensor &gradient, cudaStream_t stream = 0);
 
-		virtual void update(float learning_rate) = 0;
+		virtual void update(float learning_rate, cudaStream_t stream = 0) = 0;
 
 		void save_model(const std::string &file_path);
 		void load_model(const std::string &file_path);
@@ -50,7 +50,7 @@ namespace Autoencoder
 		Tensor backward_encode(const Tensor &gradient, cudaStream_t stream = 0) override;
 
 	public:
-		void update(float learning_rate) override;
+		void update(float learning_rate, cudaStream_t stream = 0) override;
 	};
 
 	class GPU : public Base
@@ -66,7 +66,7 @@ namespace Autoencoder
 		GPU();
 		// GPU(const Base &base);
 
-		void update(float learning_rate) override;
+		void update(float learning_rate, cudaStream_t stream = 0) override;
 	};
 
 }

@@ -42,25 +42,25 @@ void Base::build()
 	layers.push_back(std::make_unique<Conv2D>(256, 3, 3, 1, 1));
 }
 
-Tensor Base::forward(const Tensor &input)
+Tensor Base::forward(const Tensor &input, cudaStream_t stream)
 {
-	return forward_decode(forward_encode(input));
+	return forward_decode(forward_encode(input, stream), stream);
 }
 
-Tensor Base::encode(const Tensor &input)
+Tensor Base::encode(const Tensor &input, cudaStream_t stream)
 {
-	return forward_encode(input);
+	return forward_encode(input, stream);
 }
 
-Tensor Base::decode(const Tensor &input)
+Tensor Base::decode(const Tensor &input, cudaStream_t stream)
 {
-    return forward_decode(input);
+    return forward_decode(input, stream);
 }
 
 
-void Base::backward(const Tensor &gradient)
+void Base::backward(const Tensor &gradient, cudaStream_t stream)
 {
-	backward_encode(backward_decode(gradient));
+	backward_encode(backward_decode(gradient, stream), stream);
 }
 
 void Base::save_model(const std::string &file_path)

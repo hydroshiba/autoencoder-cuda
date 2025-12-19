@@ -14,13 +14,13 @@ GPU::GPU() : Base()
 	std::cout << "[Autoencoder::GPU] All data stays on GPU - zero CPU-GPU transfers during training!" << std::endl;
 }
 
-void GPU::update(float learning_rate)
+void GPU::update(float learning_rate, cudaStream_t stream)
 {
 	std::cout << "[GPU::update] Starting update for " << layers.size() << " layers" << std::endl;
 	for (size_t i = 0; i < layers.size(); ++i)
 	{
 		std::cout << "[GPU::update] Updating layer " << i << std::endl;
-		layers[i]->update(learning_rate);
+		layers[i]->update(learning_rate, stream);
 		std::cout << "[GPU::update] Layer " << i << " updated" << std::endl;
 	}
 	std::cout << "[GPU::update] All layers updated" << std::endl;
