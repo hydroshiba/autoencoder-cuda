@@ -59,7 +59,7 @@ __global__ void maxpool_backward_kernel(const float *grad_output, float *grad_in
 	atomicAdd(&grad_input[in_idx], grad_output[idx]);
 }
 
-Tensor MaxPool2D::forward_gpu(const Tensor &input)
+Tensor MaxPool2D::forward_gpu(const Tensor &input, cudaStream_t stream)
 {
 	cached_input = input;
 
@@ -83,27 +83,26 @@ Tensor MaxPool2D::forward_gpu(const Tensor &input)
 	Tensor output(N, C, out_h, out_w, true);
 	output.to_gpu();
 
-	// Allocate device memory for max indices
-	max_indices.resize(out_size);
-	int *d_indices = nullptr;
-	CUDA_CHECK(cudaMalloc(&d_indices, out_size * sizeof(int)));
+	// Allocate/resize device memory for max indices (keep on GPU)
+	if (d_indices_size < out_size)
+	{
+		if (d_max_indices) cudaFree(d_max_indices);
+		CUDA_CHECK(cudaMalloc(&d_max_indices, out_size * sizeof(int)));
+		d_indices_size = out_size;
+	}
 
 	const int threads = 256;
 	const int blocks = static_cast<int>((out_size + threads - 1) / threads);
-	maxpool_forward_kernel<<<blocks, threads>>>(
-		input_gpu.data(), output.data(), d_indices,
+	maxpool_forward_kernel<<<blocks, threads, 0, stream>>>(
+		input_gpu.data(), output.data(), d_max_indices,
 		N, C, H, W, pool_size, out_h, out_w);
 	CUDA_CHECK(cudaGetLastError());
-	CUDA_CHECK(cudaDeviceSynchronize());
 
-	// Copy max_indices back to host (needed for backward pass)
-	CUDA_CHECK(cudaMemcpy(max_indices.data(), d_indices, out_size * sizeof(int), cudaMemcpyDeviceToHost));
-	cudaFree(d_indices);
-
+	// No CPU transfer - indices stay on GPU!
 	return output;
 }
 
-Tensor MaxPool2D::backward_gpu(const Tensor &grad_output)
+Tensor MaxPool2D::backward_gpu(const Tensor &grad_output, cudaStream_t stream)
 {
 	const int N = cached_input.batch();
 	const int C = cached_input.channels();
@@ -125,21 +124,14 @@ Tensor MaxPool2D::backward_gpu(const Tensor &grad_output)
 	// Create grad_input on GPU
 	Tensor grad_input(N, C, H, W, true);
 	grad_input.to_gpu();
-	CUDA_CHECK(cudaMemset(grad_input.data(), 0, in_size * sizeof(float)));
+	CUDA_CHECK(cudaMemsetAsync(grad_input.data(), 0, in_size * sizeof(float), stream));
 
-	// Upload max_indices to device
-	int *d_indices = nullptr;
-	CUDA_CHECK(cudaMalloc(&d_indices, out_size * sizeof(int)));
-	CUDA_CHECK(cudaMemcpy(d_indices, max_indices.data(), out_size * sizeof(int), cudaMemcpyHostToDevice));
-
+	// Use GPU-resident indices directly (no transfer!)
 	const int threads = 256;
 	const int blocks = static_cast<int>((out_size + threads - 1) / threads);
-	maxpool_backward_kernel<<<blocks, threads>>>(
-		grad_output_gpu.data(), grad_input.data(), d_indices, static_cast<int>(out_size));
+	maxpool_backward_kernel<<<blocks, threads, 0, stream>>>(
+		grad_output_gpu.data(), grad_input.data(), d_max_indices, static_cast<int>(out_size));
 	CUDA_CHECK(cudaGetLastError());
-	CUDA_CHECK(cudaDeviceSynchronize());
-
-	cudaFree(d_indices);
 
 	return grad_input;
 }

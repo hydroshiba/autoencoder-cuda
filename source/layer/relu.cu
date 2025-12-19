@@ -43,7 +43,7 @@ __global__ void relu_backward_kernel(const float *input, const float *grad_outpu
 	}
 }
 
-Tensor ReLU::forward_gpu(const Tensor &input)
+Tensor ReLU::forward_gpu(const Tensor &input, cudaStream_t stream)
 {
 	cached_input = input;
 
@@ -60,15 +60,14 @@ Tensor ReLU::forward_gpu(const Tensor &input)
 
 	dim3 blockSize(256);
 	dim3 gridSize((output.size() + blockSize.x - 1) / blockSize.x);
-	relu_forward_kernel<<<gridSize, blockSize>>>(input_gpu.data(), output.data(), output.size());
+	relu_forward_kernel<<<gridSize, blockSize, 0, stream>>>(input_gpu.data(), output.data(), output.size());
 
 	CHECK(cudaGetLastError());
-	CHECK(cudaDeviceSynchronize());
 
 	return output;
 }
 
-Tensor ReLU::backward_gpu(const Tensor &grad_output)
+Tensor ReLU::backward_gpu(const Tensor &grad_output, cudaStream_t stream)
 {
 	// Ensure grad_output is on GPU
 	Tensor grad_output_gpu = grad_output;
@@ -90,10 +89,9 @@ Tensor ReLU::backward_gpu(const Tensor &grad_output)
 
 	dim3 blockSize(256);
 	dim3 gridSize((grad_input.size() + blockSize.x - 1) / blockSize.x);
-	relu_backward_kernel<<<gridSize, blockSize>>>(cached_on_gpu.data(), grad_output_gpu.data(), grad_input.data(), grad_input.size());
+	relu_backward_kernel<<<gridSize, blockSize, 0, stream>>>(cached_on_gpu.data(), grad_output_gpu.data(), grad_input.data(), grad_input.size());
 
 	CHECK(cudaGetLastError());
-	CHECK(cudaDeviceSynchronize());
 
 	return grad_input;
 }

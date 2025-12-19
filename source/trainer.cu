@@ -57,6 +57,7 @@ __global__ void mse_grad_kernel(
 /* ================= TRAINER ================= */
 
 Trainer::Trainer(Autoencoder::Base *model, DataLoader *data_loader, const std::string &config_path)
+    : num_streams(1)
 {
     this->model = model;
     this->data_loader = data_loader;
@@ -65,6 +66,79 @@ Trainer::Trainer(Autoencoder::Base *model, DataLoader *data_loader, const std::s
     use_gpu = (dynamic_cast<Autoencoder::GPU *>(model) != nullptr);
 
     load_config(config_path);
+    
+    if (use_gpu)
+    {
+        init_streams();
+    }
+}
+
+Trainer::~Trainer()
+{
+    if (use_gpu)
+    {
+        cleanup_streams();
+    }
+}
+
+void Trainer::init_streams()
+{
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, 0);
+    
+    // Determine optimal stream count based on GPU capabilities
+    num_streams = std::min(deviceProp.multiProcessorCount / 8, deviceProp.asyncEngineCount);
+    num_streams = std::max(2, std::min(num_streams, 8));  // Clamp to [2, 8]
+    
+    // Check available memory
+    size_t free_mem, total_mem;
+    cudaMemGetInfo(&free_mem, &total_mem);
+    size_t mem_per_stream = 200 * 1024 * 1024;  // 200MB estimate per stream
+    int max_by_mem = static_cast<int>(free_mem / mem_per_stream / 2);
+    num_streams = std::min(num_streams, max_by_mem);
+    
+    std::cout << "[Trainer] GPU: " << deviceProp.name << std::endl;
+    std::cout << "[Trainer] SMs: " << deviceProp.multiProcessorCount << std::endl;
+    std::cout << "[Trainer] Using " << num_streams << " concurrent streams" << std::endl;
+    std::cout << "[Trainer] Sub-batch size per stream: " << batch_size << " images" << std::endl;
+    std::cout << "[Trainer] Effective batch size: " << (batch_size * num_streams) << " images" << std::endl;
+    
+    // Create streams and events
+    streams.resize(num_streams);
+    batch_complete_events.resize(num_streams);
+    update_complete_events.resize(num_streams);
+    d_loss_buffers.resize(num_streams, nullptr);
+    h_loss_pinned.resize(num_streams, nullptr);
+    
+    for (int i = 0; i < num_streams; ++i)
+    {
+        cudaStreamCreate(&streams[i]);
+        cudaEventCreate(&batch_complete_events[i]);
+        cudaEventCreate(&update_complete_events[i]);
+        
+        // Allocate loss buffers
+        cudaMalloc(&d_loss_buffers[i], sizeof(float));
+        cudaMallocHost(&h_loss_pinned[i], sizeof(float));
+    }
+    
+    std::cout << "[Trainer] Streams initialized successfully" << std::endl;
+}
+
+void Trainer::cleanup_streams()
+{
+    for (int i = 0; i < num_streams; ++i)
+    {
+        if (streams[i])
+            cudaStreamDestroy(streams[i]);
+        if (batch_complete_events[i])
+            cudaEventDestroy(batch_complete_events[i]);
+        if (update_complete_events[i])
+            cudaEventDestroy(update_complete_events[i]);
+        if (d_loss_buffers[i])
+            cudaFree(d_loss_buffers[i]);
+        if (h_loss_pinned[i])
+            cudaFreeHost(h_loss_pinned[i]);
+    }
 }
 
 void Trainer::load_config(const std::string &path)
@@ -73,7 +147,7 @@ void Trainer::load_config(const std::string &path)
     learning_rate = 0.001f;
 
     if (use_gpu)
-        batch_size = 64; // GPU
+        batch_size = 32; // Per-stream batch size
     else
         batch_size = 32; // CPU
 
@@ -127,6 +201,33 @@ float Trainer::compute_loss(const Tensor &output, const Tensor &target)
     cudaFree(d_loss);
 
     return h_loss / N;
+}
+
+float Trainer::compute_loss_async(const Tensor &output, const Tensor &target,
+                                  cudaStream_t stream, int stream_id)
+{
+    if (output.size() != target.size())
+        throw std::runtime_error("compute_loss_async: size mismatch");
+
+    const int N = output.size();
+    
+    cudaMemsetAsync(d_loss_buffers[stream_id], 0, sizeof(float), stream);
+    
+    int threads = 256;
+    int blocks = (N + threads - 1) / threads;
+    
+    mse_loss_kernel<<<blocks, threads, 0, stream>>>(
+        output.data(),
+        target.data(),
+        d_loss_buffers[stream_id],
+        N);
+    
+    // Async copy to pinned host memory
+    cudaMemcpyAsync(h_loss_pinned[stream_id], d_loss_buffers[stream_id],
+                    sizeof(float), cudaMemcpyDeviceToHost, stream);
+    
+    // Return placeholder - actual value read after stream sync
+    return *h_loss_pinned[stream_id] / N;
 }
 
 /* ================= TRAIN LOOP ================= */
@@ -218,10 +319,12 @@ float Trainer::train_one_epoch(int epoch_idx, float &epoch_time_ms)
         }
         else
         {
+            float *output_data = output.data();
+            float *input_data = input.data();
+            float *grad_data = grad.data();
             for (int j = 0; j < N; ++j)
             {
-                grad.data()[j] =
-                    scale * (output.data()[j] - input.data()[j]);
+                grad_data[j] = scale * (output_data[j] - input_data[j]);
             }
         }
 

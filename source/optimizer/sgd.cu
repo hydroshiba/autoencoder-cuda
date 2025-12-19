@@ -22,7 +22,7 @@ __global__ void sgd_update_kernel(float *params, const float *grads, float lr, i
     }
 }
 
-void sgd_update_device(float *params, const float *grads, float lr, std::size_t size)
+void sgd_update_device(float *params, const float *grads, float lr, std::size_t size, cudaStream_t stream)
 {
     if (!params || !grads || size == 0)
     {
@@ -34,10 +34,8 @@ void sgd_update_device(float *params, const float *grads, float lr, std::size_t 
     const int blocks = static_cast<int>((size + threads - 1) / threads);
 
     std::cout << "[sgd_update_device] Launch kernel: size=" << size << ", blocks=" << blocks << ", threads=" << threads << std::endl;
-    sgd_update_kernel<<<blocks, threads>>>(params, grads, lr, static_cast<int>(size));
+    sgd_update_kernel<<<blocks, threads, 0, stream>>>(params, grads, lr, static_cast<int>(size));
     std::cout << "[sgd_update_device] Checking last error..." << std::endl;
     CUDA_CHECK(cudaGetLastError());
-    std::cout << "[sgd_update_device] Synchronizing..." << std::endl;
-    CUDA_CHECK(cudaDeviceSynchronize());
     std::cout << "[sgd_update_device] Done" << std::endl;
 }

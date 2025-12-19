@@ -42,19 +42,23 @@ Tensor UpSample2D::forward_cpu(const Tensor &input)
 
 Tensor UpSample2D::backward_cpu(const Tensor &grad_output)
 {
-    Tensor grad_input(cached_input.batch(), cached_input.channels(),
-                      cached_input.height(), cached_input.width());
+    int input_h = cached_input.height();
+    int input_w = cached_input.width();
+    int input_c = cached_input.channels();
+    int input_n = cached_input.batch();
+
+    Tensor grad_input(input_n, input_c, input_h, input_w);
 
     std::fill(grad_input.data(),
               grad_input.data() + grad_input.size(),
               0.0f);
 
-    int out_h = cached_input.height() * scale_factor;
-    int out_w = cached_input.width() * scale_factor;
+    int out_h = input_h * scale_factor;
+    int out_w = input_w * scale_factor;
 
-    for (int n = 0; n < cached_input.batch(); n++)
+    for (int n = 0; n < input_n; n++)
     {
-        for (int c = 0; c < cached_input.channels(); c++)
+        for (int c = 0; c < input_c; c++)
         {
             for (int h = 0; h < out_h; h++)
             {

@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <cuda_runtime.h>
 
 #include "layer.hpp"
 
@@ -18,11 +19,11 @@ namespace Autoencoder
 
 		void add_layer(std::unique_ptr<Layer> layer);
 
-		virtual Tensor forward_encode(const Tensor &input) = 0;
-		virtual Tensor forward_decode(const Tensor &input) = 0;
+		virtual Tensor forward_encode(const Tensor &input, cudaStream_t stream = 0) = 0;
+		virtual Tensor forward_decode(const Tensor &input, cudaStream_t stream = 0) = 0;
 
-		virtual Tensor backward_decode(const Tensor &gradient) = 0;
-		virtual Tensor backward_encode(const Tensor &gradient) = 0;
+		virtual Tensor backward_decode(const Tensor &gradient, cudaStream_t stream = 0) = 0;
+		virtual Tensor backward_encode(const Tensor &gradient, cudaStream_t stream = 0) = 0;
 
 	public:
 		Base();
@@ -42,11 +43,11 @@ namespace Autoencoder
 	class CPU : public Base
 	{
 	private:
-		Tensor forward_encode(const Tensor &input) override;
-		Tensor forward_decode(const Tensor &input) override;
+		Tensor forward_encode(const Tensor &input, cudaStream_t stream = 0) override;
+		Tensor forward_decode(const Tensor &input, cudaStream_t stream = 0) override;
 
-		Tensor backward_decode(const Tensor &gradient) override;
-		Tensor backward_encode(const Tensor &gradient) override;
+		Tensor backward_decode(const Tensor &gradient, cudaStream_t stream = 0) override;
+		Tensor backward_encode(const Tensor &gradient, cudaStream_t stream = 0) override;
 
 	public:
 		void update(float learning_rate) override;
@@ -55,11 +56,11 @@ namespace Autoencoder
 	class GPU : public Base
 	{
 	private:
-		Tensor forward_encode(const Tensor &input) override;
-		Tensor forward_decode(const Tensor &input) override;
+		Tensor forward_encode(const Tensor &input, cudaStream_t stream = 0) override;
+		Tensor forward_decode(const Tensor &input, cudaStream_t stream = 0) override;
 
-		Tensor backward_decode(const Tensor &gradient) override;
-		Tensor backward_encode(const Tensor &gradient) override;
+		Tensor backward_decode(const Tensor &gradient, cudaStream_t stream = 0) override;
+		Tensor backward_encode(const Tensor &gradient, cudaStream_t stream = 0) override;
 
 	public:
 		GPU();

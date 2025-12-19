@@ -1,8 +1,18 @@
 #include "layer.hpp"
+#include <cuda_runtime.h>
 
 MaxPool2D::MaxPool2D(int pool_size_, int stride_)
     : pool_size(pool_size_), stride(stride_)
 {
+}
+
+MaxPool2D::~MaxPool2D()
+{
+    if (d_max_indices)
+    {
+        cudaFree(d_max_indices);
+        d_max_indices = nullptr;
+    }
 }
 
 Tensor MaxPool2D::forward_cpu(const Tensor &input)
