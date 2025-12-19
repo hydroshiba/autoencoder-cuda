@@ -11,6 +11,24 @@ Autoencoder<Tag>::Autoencoder() {
 }
 
 template <typename Tag>
+Autoencoder<Tag>::Autoencoder(const Autoencoder<Tag> &other) {
+	layers.clear();
+	layers.reserve(other.layers.size());
+	for(const auto &layer : other.layers) layers.push_back(layer->clone());
+	encode_layer = other.encode_layer;
+}
+
+template <typename Tag>
+Autoencoder<Tag>& Autoencoder<Tag>::operator=(const Autoencoder<Tag> &other) {
+	if(this == reinterpret_cast<const Autoencoder<Tag>*>(&other)) return *this;
+	layers.clear();
+	layers.reserve(other.layers.size());
+	for(const auto &layer : other.layers) layers.push_back(layer->clone());
+	encode_layer = other.encode_layer;
+	return *this;
+}
+
+template <typename Tag>
 void Autoencoder<Tag>::build() {
 	layers.clear();
 

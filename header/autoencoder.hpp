@@ -25,6 +25,9 @@ private:
 
 public:
 	Autoencoder();
+	Autoencoder(const Autoencoder &other);
+	Autoencoder& operator=(const Autoencoder &other);
+	Autoencoder(Autoencoder&& other) = default;
 	
 	void build();
 	void clear_gradients();

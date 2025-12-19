@@ -2,6 +2,7 @@
 #define LAYER_HPP
 
 #include <vector>
+#include <memory>
 
 #include "config.hpp"
 #include "tensor.hpp"
@@ -25,6 +26,7 @@ public:
 	virtual std::vector<Tensor<Tag>*> gradients() { return {}; }
 
 	virtual void clear_gradients() {}
+	virtual std::unique_ptr<Base> clone() const = 0;
 	virtual ~Base() = default;
 
 	// For fuck sake, kill yourself NVCC
@@ -74,6 +76,7 @@ public:
 
 	Tensor<Tag> forward(const Tensor<Tag> &input) override;
 	Tensor<Tag> backward(const Tensor<Tag> &grad_output) override;
+	std::unique_ptr<Base<Tag>> clone() const override;
 };
 
 template <typename Tag>
@@ -88,6 +91,7 @@ public:
 
 	Tensor<Tag> forward(const Tensor<Tag> &input) override;
 	Tensor<Tag> backward(const Tensor<Tag> &grad_output) override;
+	std::unique_ptr<Base<Tag>> clone() const override;
 };
 
 template <typename Tag>
@@ -100,6 +104,7 @@ public:
 
 	Tensor<Tag> forward(const Tensor<Tag> &input) override;
 	Tensor<Tag> backward(const Tensor<Tag> &grad_output) override;
+	std::unique_ptr<Base<Tag>> clone() const override;
 };
 
 }

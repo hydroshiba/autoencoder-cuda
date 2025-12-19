@@ -46,6 +46,11 @@ Conv2D<Tag>::Conv2D(int in_channels, int out_channels, int filter_size, int stri
 	this->grad_biases = Tensor<Tag>(1, out_channels, 1, 1);
 }
 
+template <typename Tag>
+std::unique_ptr<Base<Tag>> Conv2D<Tag>::clone() const {
+	return std::make_unique<Conv2D<Tag>>(*this);
+}
+
 // Max Pooling 2D layer generic method implementations
 
 template <typename Tag>
@@ -56,11 +61,21 @@ MaxPool2D<Tag>::MaxPool2D(int size, int str, Activation::Func act) :
 	this->activation = act;
 }
 
+template <typename Tag>
+std::unique_ptr<Base<Tag>> MaxPool2D<Tag>::clone() const {
+	return std::make_unique<MaxPool2D<Tag>>(*this);
+}
+
 // Upsample 2D generic method implementations
 
 template <typename Tag>
 UpSample2D<Tag>::UpSample2D(int s, Activation::Func act) : scale(s) {
 	this->activation = act;
+}
+
+template <typename Tag>
+std::unique_ptr<Base<Tag>> UpSample2D<Tag>::clone() const {
+	return std::make_unique<UpSample2D<Tag>>(*this);
 }
 
 }
