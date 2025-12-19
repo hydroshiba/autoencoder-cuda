@@ -17,7 +17,7 @@ void Trainer::fit(Autoencoder<Tag> &model, Dataset &dataset, Optimizer &optimize
 		float total_loss = 0.0f;
 		size_t batches = dataset.train_size() / batch_size;
 
-		for(size_t i = 1; i <= batches; ++i) {
+		for(size_t i = 0; i < batches; ++i) {
 			model.clear_gradients();
 			dataset.get_batch(i, batch_size, input);
 			Tensor<Tag> output = model.forward(input);
