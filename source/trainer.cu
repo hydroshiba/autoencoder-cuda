@@ -280,14 +280,22 @@ float Trainer::train_one_epoch(int epoch_idx, float &epoch_time_ms)
         if (use_gpu)
             input.to_gpu();
 
+        // Select stream (single-stream execution for now)
+        int stream_id = 0;
+        cudaStream_t stream = streams.empty() ? 0 : streams[stream_id];
+
         // Forward pass
         std::cout << "[Epoch " << epoch_idx + 1 << "] Batch " << i << " forward starting..." << std::endl;
-        Tensor output = model->forward(input);
+        Tensor output = model->forward(input, stream);
         std::cout << "[Epoch " << epoch_idx + 1 << "] Batch " << i << " forward done" << std::endl;
 
-        // Compute loss
-        float loss = compute_loss(output, input);
-        total_loss += loss;
+        float loss = 0.0f;
+
+        // Compute loss (GPU async / CPU sync)
+        if (use_gpu && !streams.empty())
+        {
+            compute_loss_async(output, input, stream, stream_id);
+        }
 
         const int N = output.size();
         const float scale = 2.0f / N;
@@ -301,14 +309,12 @@ float Trainer::train_one_epoch(int epoch_idx, float &epoch_time_ms)
             int threads = 256;
             int blocks = (N + threads - 1) / threads;
 
-            mse_grad_kernel<<<blocks, threads>>>(
+            mse_grad_kernel<<<blocks, threads, 0, stream>>>(
                 output.data(),
                 input.data(),
                 grad.data(),
                 N,
                 scale);
-
-            cudaDeviceSynchronize();
 
             cudaError_t err = cudaGetLastError();
             if (err != cudaSuccess)
@@ -330,16 +336,32 @@ float Trainer::train_one_epoch(int epoch_idx, float &epoch_time_ms)
 
         // Backward pass
         std::cout << "[Epoch " << epoch_idx + 1 << "] Batch " << i << " backward starting..." << std::endl;
-        model->backward(grad);
+        model->backward(grad, stream);
         std::cout << "[Epoch " << epoch_idx + 1 << "] Batch " << i << " backward done" << std::endl;
 
         // Update weights
         std::cout << "[Epoch " << epoch_idx + 1 << "] Batch " << i << " update starting..." << std::endl;
-        model->update(learning_rate);
+        model->update(learning_rate, stream);
         std::cout << "[Epoch " << epoch_idx + 1 << "] Batch " << i << " update done" << std::endl;
 
         if (use_gpu)
-            cudaDeviceSynchronize();
+        {
+            if (!streams.empty())
+            {
+                cudaStreamSynchronize(stream);
+                loss = *h_loss_pinned[stream_id] / N;
+            }
+            else
+            {
+                loss = compute_loss(output, input);
+            }
+            total_loss += loss;
+        }
+        else
+        {
+            loss = compute_loss(output, input);
+            total_loss += loss;
+        }
 
         /* -------- Log -------- */
         if (i % 10 == 0)

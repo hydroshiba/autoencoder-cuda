@@ -4,7 +4,7 @@
 
 using namespace Autoencoder;
 
-void CPU::update(float learning_rate)
+void CPU::update(float learning_rate, cudaStream_t /*stream*/)
 {
 	for (const auto &layer : layers)
 	{
