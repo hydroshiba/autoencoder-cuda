@@ -21,11 +21,31 @@ private:
 
 public:
 	Dataset(const std::string &path);
-	Tensor<Device::CPU> get_batch(size_t batch_index, size_t batch_size); // Returns a subset of the training data
+
+	// Methods that return a data batch
+	void get_batch(size_t batch_index, size_t batch_size, Tensor<Device::CPU> &batch);
+	void get_batch(size_t batch_index, size_t batch_size, Tensor<Device::GPU> &batch);
+
+	void get_test_batch(size_t batch_index, size_t batch_size, Tensor<Device::CPU> &batch);
+	void get_test_batch(size_t batch_index, size_t batch_size, Tensor<Device::GPU> &batch);
+
+	template <typename Tag>
+	Tensor<Tag> get_batch(size_t batch_index, size_t batch_size) {
+		Tensor<Tag> batch;
+		get_batch(batch_index, batch_size, batch);
+		return batch;
+	}
+
+	template <typename Tag>
+	Tensor<Tag> get_test_batch(size_t batch_index, size_t batch_size) {
+		Tensor<Tag> batch;
+		get_test_batch(batch_index, batch_size, batch);
+		return batch;
+	}
 	
 	// Getters
-	size_t train_size() const;
 	size_t test_size() const;
+	size_t train_size() const;
 	unsigned short train_label(size_t index) const;
 };
 

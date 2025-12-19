@@ -118,13 +118,20 @@ void Dataset::shuffle() {
 	train_labels = std::move(shuffled_labels);
 }
 
-Tensor<Device::CPU> Dataset::get_batch(size_t batch_index, size_t batch_size) {
+void Dataset::get_batch(size_t batch_index, size_t batch_size, Tensor<Device::CPU> &batch) {
 	size_t total = train_images.batches();
 	size_t start_index = batch_index * batch_size;
 	
 	if(start_index >= total) throw std::out_of_range("Batch index out of range");
 	size_t actual_count = std::min(batch_size, total - start_index);
-	Tensor<Device::CPU> batch(actual_count, train_images.channels(), train_images.height(), train_images.width());
+	
+	// Resize batch tensor if necessary
+	if(batch.batches() != actual_count ||
+	   batch.channels() != train_images.channels() ||
+	   batch.height() != train_images.height() ||
+	   batch.width() != train_images.width()) {
+		batch = Tensor<Device::CPU>(actual_count, train_images.channels(), train_images.height(), train_images.width());
+	}
 
 	// Optimization: Contiguous block copy
 	size_t stride = train_images.channels() * train_images.height() * train_images.width();
@@ -132,8 +139,75 @@ Tensor<Device::CPU> Dataset::get_batch(size_t batch_index, size_t batch_size) {
 
 	const float* src_ptr = train_images.data() + (start_index * stride);
 	std::copy(src_ptr, src_ptr + total_elements, batch.data());
+}
 
-	return batch;
+void Dataset::get_batch(size_t batch_index, size_t batch_size, Tensor<Device::GPU> &batch) {
+	size_t total = train_images.batches();
+	size_t start_index = batch_index * batch_size;
+	
+	if(start_index >= total) throw std::out_of_range("Batch index out of range");
+	size_t actual_count = std::min(batch_size, total - start_index);
+	
+	// Resize batch tensor if necessary
+	if(batch.batches() != actual_count ||
+	   batch.channels() != train_images.channels() ||
+	   batch.height() != train_images.height() ||
+	   batch.width() != train_images.width()) {
+		batch = Tensor<Device::GPU>(actual_count, train_images.channels(), train_images.height(), train_images.width());
+	}
+
+	// Optimization: Contiguous block copy
+	size_t stride = train_images.channels() * train_images.height() * train_images.width();
+	size_t total_elements = actual_count * stride;
+
+	const float* src_ptr = train_images.data() + (start_index * stride);
+	checkCUDA(cudaMemcpyAsync(batch.data(), src_ptr, total_elements * sizeof(float), cudaMemcpyHostToDevice, 0));
+}
+
+void Dataset::get_test_batch(size_t batch_index, size_t batch_size, Tensor<Device::CPU> &batch) {
+	size_t total = test_images.batches();
+	size_t start_index = batch_index * batch_size;
+	
+	if(start_index >= total) throw std::out_of_range("Batch index out of range");
+	size_t actual_count = std::min(batch_size, total - start_index);
+	
+	// Resize batch tensor if necessary
+	if(batch.batches() != actual_count ||
+	   batch.channels() != test_images.channels() ||
+	   batch.height() != test_images.height() ||
+	   batch.width() != test_images.width()) {
+		batch = Tensor<Device::CPU>(actual_count, test_images.channels(), test_images.height(), test_images.width());
+	}
+
+	// Optimization: Contiguous block copy
+	size_t stride = test_images.channels() * test_images.height() * test_images.width();
+	size_t total_elements = actual_count * stride;
+
+	const float* src_ptr = test_images.data() + (start_index * stride);
+	std::copy(src_ptr, src_ptr + total_elements, batch.data());
+}
+
+void Dataset::get_test_batch(size_t batch_index, size_t batch_size, Tensor<Device::GPU> &batch) {
+	size_t total = test_images.batches();
+	size_t start_index = batch_index * batch_size;
+	
+	if(start_index >= total) throw std::out_of_range("Batch index out of range");
+	size_t actual_count = std::min(batch_size, total - start_index);
+	
+	// Resize batch tensor if necessary
+	if(batch.batches() != actual_count ||
+	   batch.channels() != test_images.channels() ||
+	   batch.height() != test_images.height() ||
+	   batch.width() != test_images.width()) {
+		batch = Tensor<Device::GPU>(actual_count, test_images.channels(), test_images.height(), test_images.width());
+	}
+
+	// Optimization: Contiguous block copy
+	size_t stride = test_images.channels() * test_images.height() * test_images.width();
+	size_t total_elements = actual_count * stride;
+
+	const float* src_ptr = test_images.data() + (start_index * stride);
+	checkCUDA(cudaMemcpyAsync(batch.data(), src_ptr, total_elements * sizeof(float), cudaMemcpyHostToDevice, 0));
 }
 
 size_t Dataset::train_size() const { return train_images.batches(); }
