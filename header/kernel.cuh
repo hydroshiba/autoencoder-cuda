@@ -22,7 +22,7 @@
 __global__ void sgd_update_kernel(float* params, const float* grads, float lr, int size);
 
 // Host launcher for the SGD kernel
-void sgd_update_device(float* params, const float* grads, float lr, std::size_t size);
+void sgd_update_device(float* params, const float* grads, float lr, std::size_t size, cudaStream_t stream = 0);
 
 // struct GpuTimer
 // {

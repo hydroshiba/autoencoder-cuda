@@ -71,7 +71,7 @@ __global__ void upsample_backward_kernel(const float *grad_out, float *grad_in,
     grad_in[idx] = sum;
 }
 
-Tensor UpSample2D::forward_gpu(const Tensor &input)
+Tensor UpSample2D::forward_gpu(const Tensor &input, cudaStream_t stream)
 {
     cached_input = input;
     const int N = input.batch();
@@ -98,15 +98,14 @@ Tensor UpSample2D::forward_gpu(const Tensor &input)
 
     int threads = 256;
     int blocks = static_cast<int>((out_size + threads - 1) / threads);
-    upsample_forward_kernel<<<blocks, threads>>>(
+    upsample_forward_kernel<<<blocks, threads, 0, stream>>>(
         input_gpu.data(), output.data(), N, C, H, W, scale_factor);
     CUDA_CHECK(cudaGetLastError());
-    CUDA_CHECK(cudaDeviceSynchronize());
 
     return output;
 }
 
-Tensor UpSample2D::backward_gpu(const Tensor &grad_output)
+Tensor UpSample2D::backward_gpu(const Tensor &grad_output, cudaStream_t stream)
 {
     const int N = cached_input.batch();
     const int C = cached_input.channels();
@@ -127,14 +126,13 @@ Tensor UpSample2D::backward_gpu(const Tensor &grad_output)
     // Create grad_input on GPU
     Tensor grad_input(N, C, H, W, true);
     grad_input.to_gpu();
-    CUDA_CHECK(cudaMemset(grad_input.data(), 0, in_size * sizeof(float)));
+    CUDA_CHECK(cudaMemsetAsync(grad_input.data(), 0, in_size * sizeof(float), stream));
 
     int threads = 256;
     int blocks = static_cast<int>((in_size + threads - 1) / threads);
-    upsample_backward_kernel<<<blocks, threads>>>(
+    upsample_backward_kernel<<<blocks, threads, 0, stream>>>(
         grad_output_gpu.data(), grad_input.data(), N, C, H, W, scale_factor);
     CUDA_CHECK(cudaGetLastError());
-    CUDA_CHECK(cudaDeviceSynchronize());
 
     return grad_input;
 }

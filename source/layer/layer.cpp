@@ -10,7 +10,7 @@ void Layer::to_gpu()
     cached_input.to_gpu();
 }
 
-void Layer::update(float learning_rate)
+void Layer::update(float learning_rate, cudaStream_t stream)
 {
     // Skip update if no parameters to update
     if (weights.size() == 0 && biases.size() == 0)
@@ -27,13 +27,13 @@ void Layer::update(float learning_rate)
         if (weights.size() > 0)
         {
             std::cout << "[Layer::update] Updating weights..." << std::endl;
-            sgd_update_device(weights.data(), grad_weights.data(), learning_rate, weights.size());
+            sgd_update_device(weights.data(), grad_weights.data(), learning_rate, weights.size(), stream);
             std::cout << "[Layer::update] Weights updated" << std::endl;
         }
         if (biases.size() > 0)
         {
             std::cout << "[Layer::update] Updating biases..." << std::endl;
-            sgd_update_device(biases.data(), grad_biases.data(), learning_rate, biases.size());
+            sgd_update_device(biases.data(), grad_biases.data(), learning_rate, biases.size(), stream);
             std::cout << "[Layer::update] Biases updated" << std::endl;
         }
     }

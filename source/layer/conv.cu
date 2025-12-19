@@ -157,7 +157,7 @@ __global__ void conv2d_input_grad_kernel(const float *grad_out, const float *wei
     grad_in[idx] = sum;
 }
 
-Tensor Conv2D::forward_gpu(const Tensor &input)
+Tensor Conv2D::forward_gpu(const Tensor &input, cudaStream_t stream)
 {
     if (input.channels() != in_channels)
     {
@@ -217,8 +217,8 @@ Tensor Conv2D::forward_gpu(const Tensor &input)
     const int threads_per_block = 256;
     const int blocks = (output_size + threads_per_block - 1) / threads_per_block;
 
-    // Launch kernel using device pointers directly
-    conv2d_forward_kernel<<<blocks, threads_per_block>>>(
+    // Launch kernel using device pointers directly with stream
+    conv2d_forward_kernel<<<blocks, threads_per_block, 0, stream>>>(
         input_gpu.data(), weights.data(), biases.data(), output.data(),
         batch_size, in_channels, out_channels,
         input_height, input_width,
@@ -226,12 +226,11 @@ Tensor Conv2D::forward_gpu(const Tensor &input)
         output_height, output_width);
 
     CUDA_CHECK(cudaGetLastError());
-    CUDA_CHECK(cudaDeviceSynchronize());
 
     return output;
 }
 
-Tensor Conv2D::backward_gpu(const Tensor &grad_output)
+Tensor Conv2D::backward_gpu(const Tensor &grad_output, cudaStream_t stream)
 {
     const int N = cached_input.batch();
     const int C_in = in_channels;
@@ -279,32 +278,31 @@ Tensor Conv2D::backward_gpu(const Tensor &grad_output)
     grad_input.to_gpu();
 
     // Zero gradients on device
-    CUDA_CHECK(cudaMemset(grad_input.data(), 0, in_size * sizeof(float)));
-    CUDA_CHECK(cudaMemset(grad_weights.data(), 0, w_size * sizeof(float)));
-    CUDA_CHECK(cudaMemset(grad_biases.data(), 0, b_size * sizeof(float)));
+    CUDA_CHECK(cudaMemsetAsync(grad_input.data(), 0, in_size * sizeof(float), stream));
+    CUDA_CHECK(cudaMemsetAsync(grad_weights.data(), 0, w_size * sizeof(float), stream));
+    CUDA_CHECK(cudaMemsetAsync(grad_biases.data(), 0, b_size * sizeof(float), stream));
 
-    // Launch kernels using device pointers directly
+    // Launch kernels using device pointers directly with stream
     int threads = 256;
     int blocks_b = (out_channels + threads - 1) / threads;
-    conv2d_bias_grad_kernel<<<blocks_b, threads>>>(
+    conv2d_bias_grad_kernel<<<blocks_b, threads, 0, stream>>>(
         grad_output_gpu.data(), grad_biases.data(),
         N, out_channels, H_out, W_out);
     CUDA_CHECK(cudaGetLastError());
 
     int total_w = static_cast<int>(w_size);
     int blocks_w = (total_w + threads - 1) / threads;
-    conv2d_weight_grad_kernel<<<blocks_w, threads>>>(
+    conv2d_weight_grad_kernel<<<blocks_w, threads, 0, stream>>>(
         cached_input_gpu.data(), grad_output_gpu.data(), grad_weights.data(),
         N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
     CUDA_CHECK(cudaGetLastError());
 
     int total_in = static_cast<int>(in_size);
     int blocks_in = (total_in + threads - 1) / threads;
-    conv2d_input_grad_kernel<<<blocks_in, threads>>>(
+    conv2d_input_grad_kernel<<<blocks_in, threads, 0, stream>>>(
         grad_output_gpu.data(), weights.data(), grad_input.data(),
         N, C_in, out_channels, H_in, W_in, kernel_size, stride, padding, H_out, W_out);
     CUDA_CHECK(cudaGetLastError());
-    CUDA_CHECK(cudaDeviceSynchronize());
 
     return grad_input;
 }
