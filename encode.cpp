@@ -74,63 +74,163 @@
 
 int main()
 {
-    std::filesystem::create_directories("/content/output");
+    // =====================================================
+    // 0. SETUP
+    // =====================================================
+    const std::string output_dir = "/content/output";
+    std::filesystem::create_directories(output_dir);
 
+    const int batch_size = 256;
+
+    // =====================================================
+    // 1. LOAD MODEL
+    // =====================================================
     Autoencoder::GPU model;
     model.load_model("/content/checkpoint_gpu_full_7h.dat");
 
+    // =====================================================
+    // 2. LOAD DATASET
+    // =====================================================
     DataLoader loader("/content/cifar-10-batches-bin");
 
-    const int batch_size = 256;
-    const int num_samples = loader.num_train();
+    // =====================================================
+    // 3. ENCODE TRAIN SET (50,000)
+    // =====================================================
+    const int num_train = loader.num_train();
 
-    std::ofstream feat_out("/content/output/train_features.bin", std::ios::binary);
-    std::ofstream label_out("/content/output/train_labels.bin", std::ios::binary);
+    std::ofstream train_feat_out(
+        output_dir + "/train_features.bin",
+        std::ios::binary
+    );
+    std::ofstream train_label_out(
+        output_dir + "/train_labels.bin",
+        std::ios::binary
+    );
 
-    if (!feat_out || !label_out)
+    if (!train_feat_out || !train_label_out)
     {
-        std::cerr << "Failed to open output files\n";
+        std::cerr << "❌ Failed to open TRAIN output files\n";
         return 1;
     }
 
-    for (int i = 0; i * batch_size < num_samples; ++i)
+    std::cout << "[ENCODE] Train set: " << num_train << " samples\n";
+
+    for (int i = 0; i * batch_size < num_train; ++i)
     {
         Tensor batch = loader.get_batch(i, batch_size);
-
         batch.to_gpu();
 
         Tensor z = model.encode(batch);
         z.to_cpu();
 
+        int N = z.batch();
+        int C = z.channels();   // 128
+        int H = z.height();     // 8
+        int W = z.width();      // 8
+        int D = C * H * W;      // 8192
+
+        const float* z_data = z.data();
+
+        // Write features
+        for (int n = 0; n < N; ++n)
+        {
+            train_feat_out.write(
+                reinterpret_cast<const char*>(z_data + n * D),
+                D * sizeof(float)
+            );
+        }
+
+        // Write labels
+        for (int j = 0; j < N; ++j)
+        {
+            unsigned short lbl =
+                loader.get_train_label(i * batch_size + j);
+
+            train_label_out.write(
+                reinterpret_cast<char*>(&lbl),
+                sizeof(lbl)
+            );
+        }
+
+        if (i % 20 == 0)
+            std::cout << "  Train batch " << i << "\n";
+    }
+
+    train_feat_out.close();
+    train_label_out.close();
+
+    // =====================================================
+    // 4. ENCODE TEST SET (10,000)
+    // =====================================================
+    const int num_test = loader.num_test();
+
+    std::ofstream test_feat_out(
+        output_dir + "/test_features.bin",
+        std::ios::binary
+    );
+    std::ofstream test_label_out(
+        output_dir + "/test_labels.bin",
+        std::ios::binary
+    );
+
+    if (!test_feat_out || !test_label_out)
+    {
+        std::cerr << "❌ Failed to open TEST output files\n";
+        return 1;
+    }
+
+    std::cout << "[ENCODE] Test set: " << num_test << " samples\n";
+
+    for (int i = 0; i * batch_size < num_test; ++i)
+    {
+        Tensor batch = loader.get_test_batch(i, batch_size);
+        batch.to_gpu();
+
+        Tensor z = model.encode(batch);
         z.to_cpu();
 
         int N = z.batch();
-        int C = z.channels(); // 128
-        int H = z.height();   // 8
-        int W = z.width();    // 8
-        int D = C * H * W;    // 8192
+        int D = z.channels() * z.height() * z.width(); // 8192
 
-        const float *z_data = z.data();
+        const float* z_data = z.data();
 
+        // Write features
         for (int n = 0; n < N; ++n)
         {
-            const float *sample_ptr = z_data + n * D;
-
-            feat_out.write(
-                reinterpret_cast<const char *>(sample_ptr),
-                D * sizeof(float));
+            test_feat_out.write(
+                reinterpret_cast<const char*>(z_data + n * D),
+                D * sizeof(float)
+            );
         }
 
-        for (int j = 0; j < z.batch(); ++j)
+        // Write labels
+        for (int j = 0; j < N; ++j)
         {
-            unsigned short lbl = loader.get_train_label(i * batch_size + j);
-            label_out.write(reinterpret_cast<char *>(&lbl), sizeof(lbl));
+            unsigned short lbl =
+                loader.get_test_label(i * batch_size + j);
+
+            test_label_out.write(
+                reinterpret_cast<char*>(&lbl),
+                sizeof(lbl)
+            );
         }
+
+        if (i % 10 == 0)
+            std::cout << "  Test batch " << i << "\n";
     }
 
-    feat_out.close();
-    label_out.close();
+    test_feat_out.close();
+    test_label_out.close();
 
-    std::cout << "Feature extraction done.\n";
+    // =====================================================
+    // 5. DONE
+    // =====================================================
+    std::cout << "✅ Feature extraction DONE\n";
+    std::cout << "Output files:\n";
+    std::cout << " - train_features.bin\n";
+    std::cout << " - train_labels.bin\n";
+    std::cout << " - test_features.bin\n";
+    std::cout << " - test_labels.bin\n";
+
     return 0;
 }
