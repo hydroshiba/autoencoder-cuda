@@ -1,3 +1,6 @@
+#ifndef TIMER_CUH
+#define TIMER_CUH
+
 #include <cuda_runtime.h>
 #include <string>
 #include <map>
@@ -48,3 +51,5 @@ public:
 		return -1.0f;
 	}
 };
+
+#endif // TIMER_CUH
