@@ -1,5 +1,6 @@
 #include "layer.hpp"
 #include "utils/error.cuh"
+#include "utils/kernel.cuh"
 
 // Upsample 2D GPU Kernels
 
@@ -59,6 +60,7 @@ __global__ void upsample_backward_kernel(
 			sum += grad_out[out_idx];
 		}
 	}
+
 	grad_in[idx] = sum;
 }
 
@@ -92,6 +94,7 @@ Tensor<Device::GPU> UpSample2D<Device::GPU>::forward(const Tensor<Device::GPU> &
 	checkCUDA(cudaDeviceSynchronize());
 
 	std::visit([&](auto&& act) { forward_activate(output, act); }, this->activation);
+	this->cached_output = output;
 	return output;
 }
 
@@ -106,17 +109,26 @@ Tensor<Device::GPU> UpSample2D<Device::GPU>::backward(const Tensor<Device::GPU> 
 
 	Tensor<Device::GPU> grad_input(N, C, H, W);
 
+	Tensor<Device::GPU> derivatives = cached_output;
+	std::visit([&](auto&& act) { backward_activate(derivatives, act); }, this->activation);
+	
+	size_t total = derivatives.size();
+	int threads_mul = Config::Tensor::block_width * Config::Tensor::block_height;
+	int blocks_mul = (total + threads_mul - 1) / threads_mul;
+	Kernel::vector_multiply<<<blocks_mul, threads_mul>>>(derivatives.data(), grad_output.data(), total);
+	checkCUDA(cudaGetLastError());
+	checkCUDA(cudaDeviceSynchronize());
+
 	int threads = Config::Conv2D::block_width * Config::Conv2D::block_height;
 	int blocks = (in_size + threads - 1) / threads;
 
 	upsample_backward_kernel<<<blocks, threads>>>(
-		grad_output.data(), grad_input.data(), N, C, H, W, scale
+		derivatives.data(), grad_input.data(), N, C, H, W, scale
 	);
 
 	checkCUDA(cudaGetLastError());
 	checkCUDA(cudaDeviceSynchronize());
 
-	std::visit([&](auto&& act) { backward_activate(grad_input, act); }, this->activation);
 	return grad_input;
 }
 

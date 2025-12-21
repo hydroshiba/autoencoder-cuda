@@ -7,7 +7,7 @@
 
 namespace Kernel {
 
-__global__ void reduce_sum(const float* data, float* result, size_t size) {
+static __global__ void reduce_sum(const float* data, float* result, size_t size) {
 	__shared__ float shared_data[256];
 	size_t tid = threadIdx.x;
 	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -21,6 +21,11 @@ __global__ void reduce_sum(const float* data, float* result, size_t size) {
 	}
 
 	if(tid == 0) atomicAdd(result, shared_data[0]);
+}
+
+static __global__ void vector_multiply(float* a, const float* b, size_t size) {
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if(idx < size) a[idx] *= b[idx];
 }
 
 }

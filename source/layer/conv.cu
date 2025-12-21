@@ -1,5 +1,6 @@
 #include "layer.hpp"
 #include "utils/error.cuh"
+#include "utils/kernel.cuh"
 
 // Convolutional 2D GPU Kernels
 
@@ -53,7 +54,7 @@ __global__ void conv2d_bias_grad_kernel(const float *grad_out, float *grad_b, in
 			for(int ow = 0; ow < W_out; ++ow)
 				sum += grad_out[((n * OC + oc) * H_out + oh) * W_out + ow];
 	
-	grad_b[oc] = sum;
+	grad_b[oc] += sum;
 }
 
 __global__ void conv2d_weight_grad_kernel(
@@ -86,7 +87,8 @@ __global__ void conv2d_weight_grad_kernel(
 			}
 		}
 	}
-	grad_w[idx] = sum;
+	
+	grad_w[idx] += sum;
 }
 
 __global__ void conv2d_input_grad_kernel(
@@ -160,29 +162,39 @@ Tensor<Device::GPU> Conv2D<Device::GPU>::forward(const Tensor<Device::GPU> &inpu
 	checkCUDA(cudaDeviceSynchronize());
 
 	std::visit([&](auto&& act) { forward_activate(output, act); }, this->activation);
+	this->cached_output = output;
 	return output;
 }
 
 template <>
 Tensor<Device::GPU> Conv2D<Device::GPU>::backward(const Tensor<Device::GPU> &grad_output) {
+	Tensor<Device::GPU> derivatives = cached_output;
+	std::visit([&](auto&& act) { backward_activate(derivatives, act); }, this->activation);
+
+	int threads = Config::Conv2D::block_width * Config::Conv2D::block_height;
+	int blocks_deriv = (derivatives.size() + threads - 1) / threads;
+	Kernel::vector_multiply<<<blocks_deriv, threads>>>(
+		derivatives.data(), grad_output.data(), derivatives.size()
+	);
+	checkCUDA(cudaGetLastError());
+	checkCUDA(cudaDeviceSynchronize());
+
 	int N = cached_input.batches();
 	int C = in_channels;
 	int H = cached_input.height();
 	int W = cached_input.width();
 	
-	int out_h = grad_output.height();
-	int out_w = grad_output.width();
+	int out_h = derivatives.height();
+	int out_w = derivatives.width();
 
 	// Initialize gradients to 0
 	Tensor<Device::GPU> grad_input(N, C, H, W);
 	grad_input.fill(0.0f);
-
-	int threads = Config::Conv2D::block_width * Config::Conv2D::block_height;
 	
 	// Bias Gradients
 	int blocks_b = (out_channels + threads - 1) / threads;
 	conv2d_bias_grad_kernel<<<blocks_b, threads>>>(
-		grad_output.data(), grad_biases.data(),
+		derivatives.data(), grad_biases.data(),
 		N, out_channels, out_h, out_w
 	);
 	checkCUDA(cudaGetLastError());
@@ -191,7 +203,7 @@ Tensor<Device::GPU> Conv2D<Device::GPU>::backward(const Tensor<Device::GPU> &gra
 	size_t w_size = grad_weights.size();
 	int blocks_w = (w_size + threads - 1) / threads;
 	conv2d_weight_grad_kernel<<<blocks_w, threads>>>(
-		cached_input.data(), grad_output.data(), grad_weights.data(),
+		cached_input.data(), derivatives.data(), grad_weights.data(),
 		N, C, out_channels, H, W,
 		filter_size, stride, padding, out_h, out_w
 	);
@@ -201,7 +213,7 @@ Tensor<Device::GPU> Conv2D<Device::GPU>::backward(const Tensor<Device::GPU> &gra
 	size_t in_size = grad_input.size();
 	int blocks_in = (in_size + threads - 1) / threads;
 	conv2d_input_grad_kernel<<<blocks_in, threads>>>(
-		grad_output.data(), weights.data(), grad_input.data(),
+		derivatives.data(), weights.data(), grad_input.data(),
 		N, C, out_channels, H, W,
 		filter_size, stride, padding, out_h, out_w
 	);
@@ -209,7 +221,6 @@ Tensor<Device::GPU> Conv2D<Device::GPU>::backward(const Tensor<Device::GPU> &gra
 	checkCUDA(cudaGetLastError());
 	checkCUDA(cudaDeviceSynchronize());
 
-	std::visit([&](auto&& act) { backward_activate(grad_input, act); }, this->activation);
 	return grad_input;
 }
 

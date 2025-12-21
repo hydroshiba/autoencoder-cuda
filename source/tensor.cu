@@ -12,8 +12,12 @@ __global__ void fill_kernel(float* data, size_t size, float value) {
 __global__ void distribute_kernel(float* data, size_t size, float mean, float std_dev, uint64_t seed) {
 	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
 	if(i < size) {
+		// Initialize local state based on global seed and thread ID
 		uint64_t state = seed + i;
-		uint64_t rands[2] = {Random::splitmix64(state), Random::splitmix64(state)};
+		uint64_t s0 = Random::splitmix64(state);
+		uint64_t s1 = Random::splitmix64(state);
+		uint64_t rands[2] = {s0, s1};
+		
 		data[i] = (Random::box_muller(rands) * std_dev) + mean;
 	}
 }
@@ -123,7 +127,8 @@ void Tensor<Device::GPU>::fill(float value) {
 
 template <>
 void Tensor<Device::GPU>::distribute(float mean, float std_dev) {
-	uint64_t seed = static_cast<uint64_t>(Config::seed);
+	static size_t call_offset = 0;
+	uint64_t seed = static_cast<uint64_t>(Config::seed) + (call_offset++ * 0x9E3779B97F4A7C15ULL);
 	
 	size_t total_size = size();
 	size_t threads = Config::Tensor::block_width * Config::Tensor::block_height;
@@ -179,7 +184,7 @@ Tensor<Device::GPU>& Tensor<Device::GPU>::operator*=(float scalar) {
 	return *this;
 }
 
-// Disable GPU memory acess from Host
+// Disable GPU memory access from Host
 
 template <>
 inline float& Tensor<Device::GPU>::operator()(size_t n, size_t c, size_t h, size_t w) {

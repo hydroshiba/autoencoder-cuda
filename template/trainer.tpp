@@ -20,22 +20,19 @@ void Trainer::fit(Autoencoder<Tag> &model, Dataset &dataset, Optimizer &optimize
 		for(size_t i = 0; i < batches; ++i) {
 			model.clear_gradients();
 			dataset.get_batch(i, batch_size, input);
+
 			Tensor<Tag> output = model.forward(input);
+			Tensor<Tag> grad = loss.backward(output, input);
 
 			float loss_val = loss(output, input);
 			total_loss += loss_val;
-
-			// d/dx (x - t)^2 = 2(x - t)
-			Tensor<Tag> grad = std::move(output);
-			grad -= input;
-			float scale = 2.0f / static_cast<float>(grad.size());
-			grad.transform([=] __host__ __device__ (float x) { return x * scale; });
 
 			model.backward(grad);
 			optimizer.step(model, learning_rate);
 
 			// Logging
-			if(i % 50 == 0) LOG("Epoch", epoch, "Batch", i, "Loss:", loss_val);
+			if(checkpoint_interval > 0 && (i + 1) % checkpoint_interval == 0)
+				LOG("Epoch", epoch, "Batch", i + 1, "Loss:", loss_val);
 		}
 
 		timer.stop("epoch");

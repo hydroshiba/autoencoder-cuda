@@ -18,13 +18,19 @@ private:
     const size_t batch_size;
     const size_t epochs;
     const float learning_rate;
+    const int checkpoint_interval;
 
 public:
-    Trainer() : batch_size(Config::batch_size), epochs(Config::epochs), learning_rate(Config::learning_rate) {}
+    Trainer() :
+        batch_size(Config::batch_size),
+        epochs(Config::epochs),
+        learning_rate(Config::learning_rate),
+        checkpoint_interval(Config::checkpoint_interval) {}
+        
     template <typename Tag, typename Optimizer, typename Loss>
     void fit(Autoencoder<Tag> &model, Dataset &dataset, Optimizer &optimizer, Loss loss = Loss::MSE);
 };
 
 #include "trainer.tpp"
 
-#endif
+#endif // TRAINER_HPP

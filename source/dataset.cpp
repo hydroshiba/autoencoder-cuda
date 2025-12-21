@@ -161,7 +161,7 @@ void Dataset::get_batch(size_t batch_index, size_t batch_size, Tensor<Device::GP
 	size_t total_elements = actual_count * stride;
 
 	const float* src_ptr = train_images.data() + (start_index * stride);
-	checkCUDA(cudaMemcpyAsync(batch.data(), src_ptr, total_elements * sizeof(float), cudaMemcpyHostToDevice, 0));
+	checkCUDA(cudaMemcpy(batch.data(), src_ptr, total_elements * sizeof(float), cudaMemcpyHostToDevice));
 }
 
 void Dataset::get_test_batch(size_t batch_index, size_t batch_size, Tensor<Device::CPU> &batch) {
@@ -207,7 +207,7 @@ void Dataset::get_test_batch(size_t batch_index, size_t batch_size, Tensor<Devic
 	size_t total_elements = actual_count * stride;
 
 	const float* src_ptr = test_images.data() + (start_index * stride);
-	checkCUDA(cudaMemcpyAsync(batch.data(), src_ptr, total_elements * sizeof(float), cudaMemcpyHostToDevice, 0));
+	checkCUDA(cudaMemcpy(batch.data(), src_ptr, total_elements * sizeof(float), cudaMemcpyHostToDevice));
 }
 
 size_t Dataset::train_size() const { return train_images.batches(); }

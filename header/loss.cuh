@@ -47,6 +47,14 @@ public:
 		loss /= static_cast<float>(elements);
 		return loss;
 	}
+
+	template <typename Tag>
+	Tensor<Tag> backward(const Tensor<Tag> &predicted, const Tensor<Tag> &target) const {
+		Tensor<Tag> diff = predicted - target;
+		float scale = 2.0f / static_cast<float>(predicted.size());
+		diff.transform([scale] __host__ __device__ (float x) { return x * scale; });
+		return diff;
+	}
 };
 
 }

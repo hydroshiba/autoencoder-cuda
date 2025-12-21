@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <memory>
+#include <type_traits>
 
 #include "config.hpp"
 #include "tensor.hpp"
@@ -16,6 +17,8 @@ class Base {
 
 protected:
 	Tensor<Tag> cached_input;
+	Tensor<Tag> cached_output;
+	
 	Activation::Func activation = Activation::Identity();
 
 public:
@@ -32,12 +35,18 @@ public:
 	// For fuck sake, kill yourself NVCC
 	template <typename Activation>
 	void forward_activate(Tensor<Tag> &tensor, Activation act) {
-		tensor.transform([act] __device__ (float x) { return act.forward(x); });
+		if constexpr (std::is_same_v<Tag, Device::CPU>) 
+			tensor.transform([act](float x) { return act.forward(x); });
+		else
+			tensor.transform([act] __device__ (float x) { return act.forward(x); });
 	}
 
 	template <typename Activation>
 	void backward_activate(Tensor<Tag> &tensor, Activation act) {
-		tensor.transform([act] __device__ (float x) { return act.backward(x); });
+		if constexpr (std::is_same_v<Tag, Device::CPU>)
+			tensor.transform([act](float x) { return act.backward(x); });
+		else
+			tensor.transform([act] __device__ (float x) { return act.backward(x); });
 	}
 };
 

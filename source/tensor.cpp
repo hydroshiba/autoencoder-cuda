@@ -44,7 +44,7 @@ void Tensor<Device::CPU>::clean_up() {
 
 template <>
 Tensor<Device::CPU>& Tensor<Device::CPU>::operator=(const Tensor<Device::CPU>& other) {
-	if (this == &other) return *this;
+	if(this == &other) return *this;
 
 	if(this->size() != other.size()) {
 		this->clean_up();
@@ -84,15 +84,19 @@ void Tensor<Device::CPU>::fill(float value) {
 
 template <>
 void Tensor<Device::CPU>::distribute(float mean, float std_dev) {
-	uint64_t seed = static_cast<uint64_t>(Config::seed);
+	static size_t call_offset = 0;
+	uint64_t seed = static_cast<uint64_t>(Config::seed) + (call_offset++ * 0x9E3779B97F4A7C15ULL);
+	
+	// Initialize state ONCE outside the loop to create a continuous stream
+	uint64_t state = seed;
+	uint64_t s0 = Random::splitmix64(state);
+	uint64_t s1 = Random::splitmix64(state);
+	uint64_t rands[2] = {s0, s1};
 	
 	for(size_t i = 0; i < size(); ++i) {
-		uint64_t state = seed + i;
-		uint64_t rands[2] = {Random::splitmix64(state), Random::splitmix64(state)};
 		data_[i] = (Random::box_muller(rands) * std_dev) + mean;
 	}
 }
-
 
 template <>
 Tensor<Device::CPU>& Tensor<Device::CPU>::operator+=(const Tensor &other) {

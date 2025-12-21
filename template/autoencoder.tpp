@@ -195,16 +195,16 @@ void Autoencoder<Tag>::load(const std::string &file_path) {
 		}
 
 		auto read_tensor = [&](Tensor<Tag>* t, size_t size) {
-			if(size > 0) {
+			if(size > 0 && t) {
 				std::vector<float> buf(size);
 				in.read(reinterpret_cast<char *>(buf.data()), sizeof(float) * size);
 				
-				if constexpr(std::is_same_v<Tag, Device::CPU>) {
-					if(t) std::copy(buf.begin(), buf.end(), t->data());
-				} else {
-					Tensor<Device::CPU> temp(1, 1, 1, size);
+				if constexpr(std::is_same_v<Tag, Device::CPU>)
+					std::copy(buf.begin(), buf.end(), t->data());
+				else {
+					Tensor<Device::CPU> temp = *t; 
 					std::copy(buf.begin(), buf.end(), temp.data());
-					if(t) *t = temp;
+					*t = temp;
 				}
 			}
 		};

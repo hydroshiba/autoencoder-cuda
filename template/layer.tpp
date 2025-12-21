@@ -37,13 +37,16 @@ Conv2D<Tag>::Conv2D(int in_channels, int out_channels, int filter_size, int stri
 	float std_dev = std::sqrt(2.0f / fan_in);
 	
 	this->weights = Tensor<Tag>(out_channels, in_channels, filter_size, filter_size);
-	this->weights.distribute(0.0f, std_dev); 
+	this->weights.distribute(0.0f, std_dev);
 
 	this->biases = Tensor<Tag>(1, out_channels, 1, 1);
 	this->biases.fill(0.0f);
 
 	this->grad_weights = Tensor<Tag>(out_channels, in_channels, filter_size, filter_size);
 	this->grad_biases = Tensor<Tag>(1, out_channels, 1, 1);
+
+	this->grad_weights.fill(0.0f);
+	this->grad_biases.fill(0.0f);
 }
 
 template <typename Tag>

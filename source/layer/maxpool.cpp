@@ -1,6 +1,7 @@
 #include "layer.hpp"
 #include <algorithm>
 #include <limits>
+#include <omp.h>
 
 // Max Pooling 2D CPU specialization implementations
 
@@ -21,47 +22,45 @@ Tensor<Device::CPU> MaxPool2D<Device::CPU>::forward(const Tensor<Device::CPU> &i
 	Tensor<Device::CPU> output(N, C, out_h, out_w);
 	this->mask = Tensor<Device::CPU>(N, C, out_h, out_w);
 
-	int n, c, oh, ow, kh, kw;
-
-	for(n = 0; n < N; ++n) {
-		for(c = 0; c < C; ++c) {
-			for(oh = 0; oh < out_h; ++oh) {
-				for(ow = 0; ow < out_w; ++ow) {
+	#pragma omp parallel for collapse(2)
+	for(int n = 0; n < N; ++n) {
+		for(int c = 0; c < C; ++c) {
+			for(int oh = 0; oh < out_h; ++oh) {
+				for(int ow = 0; ow < out_w; ++ow) {
 					
 					float max_val = -std::numeric_limits<float>::infinity();
-					int max_idx = -1;
+					int max_local = 0;
 
-					// Base index for input window
 					int h_start = oh * pool_size;
 					int w_start = ow * pool_size;
 
-					for(kh = 0; kh < pool_size; ++kh) {
-						for(kw = 0; kw < pool_size; ++kw) {
+					for(int kh = 0; kh < pool_size; ++kh) {
+						for(int kw = 0; kw < pool_size; ++kw) {
 							
 							int ih = h_start + kh;
 							int iw = w_start + kw;
 
-							// Manual flat index calculation to bypass operator() bounds check
 							int idx = ((n * C + c) * H + ih) * W + iw;
 							float v = input.data()[idx];
 
 							if(v > max_val) {
 								max_val = v;
-								max_idx = idx;
+								// Store relative local index
+								max_local = kh * pool_size + kw;
 							}
 						}
 					}
 
 					int out_idx = ((n * C + c) * out_h + oh) * out_w + ow;
 					output.data()[out_idx] = max_val;
-					// Store index as float in mask tensor
-					mask.data()[out_idx] = static_cast<float>(max_idx);
+					mask.data()[out_idx] = static_cast<float>(max_local);
 				}
 			}
 		}
 	}
 
 	std::visit([&](auto&& act) { forward_activate(output, act); }, this->activation);
+	this->cached_output = output;
 	return output;
 }
 
@@ -75,17 +74,38 @@ Tensor<Device::CPU> MaxPool2D<Device::CPU>::backward(const Tensor<Device::CPU> &
 	const int out_h = grad_output.height();
 	const int out_w = grad_output.width();
 
+	Tensor<Device::CPU> derivatives = cached_output;
+	std::visit([&](auto&& act) { backward_activate(derivatives, act); }, this->activation);
+	for(size_t i = 0; i < derivatives.size(); ++i) {
+		derivatives.data()[i] *= grad_output.data()[i];
+	}
+
 	Tensor<Device::CPU> grad_input(N, C, H, W);
 	grad_input.fill(0.0f);
 
-	int total_output_elements = N * C * out_h * out_w;
+	// Parallelize over outputs, safe to write to input because mapping is unique
+	#pragma omp parallel for collapse(2)
+	for(int n = 0; n < N; ++n) {
+		for(int c = 0; c < C; ++c) {
+			for(int oh = 0; oh < out_h; ++oh) {
+				for(int ow = 0; ow < out_w; ++ow) {
+					
+					int out_idx = ((n * C + c) * out_h + oh) * out_w + ow;
+					
+					// Retrieve local index
+					int local_idx = static_cast<int>(mask.data()[out_idx]);
+					int kh = local_idx / pool_size;
+					int kw = local_idx % pool_size;
 
-	for(int i = 0; i < total_output_elements; ++i) {
-		int in_idx = static_cast<int>(mask.data()[i]);
-		grad_input.data()[in_idx] += grad_output.data()[i];
+					int ih = oh * pool_size + kh;
+					int iw = ow * pool_size + kw;
+					
+					int in_idx = ((n * C + c) * H + ih) * W + iw;
+					grad_input.data()[in_idx] += derivatives.data()[out_idx];
+				}
+			}
+		}
 	}
-
-	std::visit([&](auto&& act) { backward_activate(grad_input, act); }, this->activation);
 	return grad_input;
 }
 

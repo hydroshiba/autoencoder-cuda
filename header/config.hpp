@@ -17,6 +17,7 @@ public:
 	static size_t epochs;
 	static float learning_rate;
 	static int seed;
+	static int checkpoint_interval;
 
 	// Class-specific configurations
 
