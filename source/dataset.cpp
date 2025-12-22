@@ -82,7 +82,6 @@ void DataLoader::load_data(const std::string &dataset_path)
                         for (int w = 0; w < image_size; ++w)
                         {
                             const int idx = channel_offset + h * image_size + w;
-
                             images(sample_idx, c, h, w) = static_cast<float>(buffer[idx]);
                         }
                     }

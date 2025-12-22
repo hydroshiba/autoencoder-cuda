@@ -71,7 +71,6 @@ public:
 
     Tensor forward_cpu(const Tensor &input) override;
     Tensor forward_gpu(const Tensor &input) override;
-
     Tensor backward_cpu(const Tensor &grad_output) override;
     Tensor backward_gpu(const Tensor &grad_output) override;
 };

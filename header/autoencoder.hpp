@@ -17,7 +17,6 @@ namespace Autoencoder
 		int encode_layer = 0;
 
 		void add_layer(std::unique_ptr<Layer> layer);
-
 		virtual Tensor forward_encode(const Tensor &input) = 0;
 		virtual Tensor forward_decode(const Tensor &input) = 0;
 
@@ -47,7 +46,6 @@ namespace Autoencoder
 
 		Tensor backward_decode(const Tensor &gradient) override;
 		Tensor backward_encode(const Tensor &gradient) override;
-
 	public:
 		void update(float learning_rate) override;
 	};
