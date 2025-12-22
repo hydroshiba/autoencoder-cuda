@@ -129,7 +129,7 @@ void Autoencoder<Tag>::save(const std::string &file_path) {
 	std::ofstream out(file_path, std::ios::binary);
 	if(!out) throw std::runtime_error("Failed to open file: " + file_path);
 
-	const std::uint32_t magic = 0x41455631; // "AEV1"
+	const std::uint32_t magic = 0x41455632; // "AEV2"
 	const std::uint32_t layer_count = static_cast<std::uint32_t>(layers.size());
 	
 	out.write(reinterpret_cast<const char *>(&magic), sizeof(magic));
@@ -175,7 +175,7 @@ void Autoencoder<Tag>::load(const std::string &file_path) {
 	in.read(reinterpret_cast<char *>(&magic), sizeof(magic));
 	in.read(reinterpret_cast<char *>(&count), sizeof(count));
 
-	if(magic != 0x41455631) throw std::runtime_error("Invalid model file magic");
+	if(magic != 0x41455632) throw std::runtime_error("Model version mismatch or corrupted file");
 	if(count != layers.size()) throw std::runtime_error("Layer count mismatch");
 
 	for(auto &layer : layers) {
