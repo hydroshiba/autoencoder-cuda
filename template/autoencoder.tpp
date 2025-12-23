@@ -50,6 +50,7 @@ void Autoencoder<Tag>::build() {
 
 	// Final layer uses Identity (default)
 	layers.push_back(std::make_unique<Layer::Conv2D<Tag>>(256, 3, 3, 1, 1));
+	layers.back()->parameters()[1]->fill(0.5f); // Set bias to 0.5 to center outputs
 }
 
 template <typename Tag>
