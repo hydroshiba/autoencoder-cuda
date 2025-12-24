@@ -1,71 +1,123 @@
+#ifndef LAYER_HPP
+#define LAYER_HPP
+
+#include <vector>
+#include <memory>
+#include <type_traits>
+
+#include "config.hpp"
 #include "tensor.hpp"
+#include "activation.cuh"
 
-class Layer {
+namespace Layer {
+
+template <typename Tag>
+class Base {
+	static_assert(Device::IsTag_v<Tag>, "Layer type must be Device::CPU or Device::GPU");
+
 protected:
-    Tensor weights, biases;
-    Tensor grad_weights, grad_biases, cached_input;
+	Tensor<Tag> cached_input;
+	Tensor<Tag> cached_output;
+	
+	Activation::Func activation = Activation::Identity();
 
 public:
-    virtual Tensor forward_cpu(const Tensor &input) = 0;
-    virtual Tensor forward_gpu(const Tensor &input) = 0;
+	virtual Tensor<Tag> forward(const Tensor<Tag> &input) = 0;
+	virtual Tensor<Tag> backward(const Tensor<Tag> &grad_output) = 0;
 
-    virtual Tensor backward_cpu(const Tensor &grad_output) = 0;
-    virtual Tensor backward_gpu(const Tensor &grad_output) = 0;
+	virtual std::vector<Tensor<Tag>*> parameters() { return {}; }
+	virtual std::vector<Tensor<Tag>*> gradients() { return {}; }
 
-    void update(float learning_rate);
-    void to_gpu();
+	virtual void clear_gradients() {}
+	virtual std::unique_ptr<Base> clone() const = 0;
+	virtual ~Base() = default;
+
+	// For fuck sake, kill yourself NVCC
+	template <typename Activation>
+	void forward_activate(Tensor<Tag> &tensor, Activation act) {
+		if constexpr (std::is_same_v<Tag, Device::CPU>) 
+			tensor.transform([act](float x) { return act.forward(x); });
+		else
+			tensor.transform([act] __device__ (float x) { return act.forward(x); });
+	}
+
+	template <typename Activation>
+	void backward_activate(Tensor<Tag> &tensor, Activation act) {
+		if constexpr (std::is_same_v<Tag, Device::CPU>)
+			tensor.transform([act](float x) { return act.backward(x); });
+		else
+			tensor.transform([act] __device__ (float x) { return act.backward(x); });
+	}
 };
 
-class Conv2D : public Layer {
+template <typename Tag>
+class Weighted : public Base<Tag> {
+protected:
+	Tensor<Tag> weights;
+	Tensor<Tag> biases;
+
+	Tensor<Tag> grad_weights;
+	Tensor<Tag> grad_biases;
+
+public:
+	std::vector<Tensor<Tag>*> parameters() override;
+	std::vector<Tensor<Tag>*> gradients() override;
+
+	void clear_gradients() override;
+	virtual ~Weighted() = default;
+};
+
+template <typename Tag>
+class Conv2D : public Weighted<Tag> {
 private:
-    int in_channels, out_channels;
-    int kernel_size, stride, padding;
+	int in_channels, out_channels;
+	int filter_size, stride, padding;
 
 public:
-    Conv2D(const int &in_channels, const int &out_channels, const int &kernel_size, const int &stride = 1, const int &padding = 0);
+	Conv2D(
+		int in_channels,
+		int out_channels,
+		int filter_size,
+		int stride = 1,
+		int padding = 0,
+		Activation::Func activation = Activation::Identity()
+	);
 
-    Tensor forward_cpu(const Tensor &input) override;
-    Tensor forward_gpu(const Tensor &input) override;
-
-    Tensor backward_cpu(const Tensor &grad_output) override;
-    Tensor backward_gpu(const Tensor &grad_output) override;
+	Tensor<Tag> forward(const Tensor<Tag> &input) override;
+	Tensor<Tag> backward(const Tensor<Tag> &grad_output) override;
+	std::unique_ptr<Base<Tag>> clone() const override;
 };
 
-class ReLU : public Layer {
-public:
-    Tensor forward_cpu(const Tensor &input) override;
-    Tensor forward_gpu(const Tensor &input) override;
-
-    Tensor backward_cpu(const Tensor &grad_output) override;
-    Tensor backward_gpu(const Tensor &grad_output) override;
-};
-
-class MaxPool2D : public Layer {
+template <typename Tag>
+class MaxPool2D : public Base<Tag> {
 private:
-    int pool_size;
-    int stride;
-    std::vector<int> max_indices;
+	int pool_size;
+	int stride;
+	Tensor<Tag> mask;
 
 public:
-    MaxPool2D(int pool_size = 2, int stride = 2);
+	MaxPool2D(int pool_size = 2, int stride = 2, Activation::Func activation = Activation::Identity());
 
-    Tensor forward_cpu(const Tensor &input) override;
-    Tensor forward_gpu(const Tensor &input) override;
-    
-    Tensor backward_cpu(const Tensor &grad_output) override;
-    Tensor backward_gpu(const Tensor &grad_output) override;
+	Tensor<Tag> forward(const Tensor<Tag> &input) override;
+	Tensor<Tag> backward(const Tensor<Tag> &grad_output) override;
+	std::unique_ptr<Base<Tag>> clone() const override;
 };
 
-class UpSample2D : public Layer {
+template <typename Tag>
+class UpSample2D : public Base<Tag> {
 private:
-    int scale_factor;
+	int scale;
 
 public:
-    UpSample2D(int scale = 2);
+	UpSample2D(int scale = 2, Activation::Func activation = Activation::Identity());
 
-    Tensor forward_cpu(const Tensor &input) override;
-    Tensor backward_cpu(const Tensor &grad_output) override;
-
-    Tensor forward_gpu(const Tensor &input) override;
-    Tensor backward_gpu(const Tensor &grad_output) override;
+	Tensor<Tag> forward(const Tensor<Tag> &input) override;
+	Tensor<Tag> backward(const Tensor<Tag> &grad_output) override;
+	std::unique_ptr<Base<Tag>> clone() const override;
 };
+
+}
+
+#include "layer.tpp"
+
+#endif // LAYER_HPP

@@ -5,27 +5,48 @@
 #include <string>
 
 #include "tensor.hpp"
+#include "utils/device.hpp"
 
-class DataLoader
-{
+class Dataset {
 private:
-    Tensor train_images;
-    std::vector<unsigned short> train_labels;
+	Tensor<Device::CPU> train_images;
+	std::vector<unsigned short> train_labels;
 
-    Tensor test_images;
-    std::vector<unsigned short> test_labels;
+	Tensor<Device::CPU> test_images;
+	std::vector<unsigned short> test_labels;
 
-    void shuffle_data();
-    void load_data(const std::string &dataset_path);
-    void normalize_data();
+	void load(const std::string &path);
+	void normalize();
+	void shuffle(); 
 
 public:
-    DataLoader(const std::string &dataset_path);
+	Dataset(const std::string &path);
 
-    Tensor get_batch(const int &batch_idx, const int &batch_size);
+	// Methods that return a data batch
+	void get_batch(size_t batch_index, size_t batch_size, Tensor<Device::CPU> &batch);
+	void get_batch(size_t batch_index, size_t batch_size, Tensor<Device::GPU> &batch);
 
-    int num_train() const;
-    int num_test() const;
+	void get_test_batch(size_t batch_index, size_t batch_size, Tensor<Device::CPU> &batch);
+	void get_test_batch(size_t batch_index, size_t batch_size, Tensor<Device::GPU> &batch);
+
+	template <typename Tag>
+	Tensor<Tag> get_batch(size_t batch_index, size_t batch_size) {
+		Tensor<Tag> batch;
+		get_batch(batch_index, batch_size, batch);
+		return batch;
+	}
+
+	template <typename Tag>
+	Tensor<Tag> get_test_batch(size_t batch_index, size_t batch_size) {
+		Tensor<Tag> batch;
+		get_test_batch(batch_index, batch_size, batch);
+		return batch;
+	}
+	
+	// Getters
+	size_t test_size() const;
+	size_t train_size() const;
+	unsigned short train_label(size_t index) const;
 };
 
 #endif // DATASET_HPP
