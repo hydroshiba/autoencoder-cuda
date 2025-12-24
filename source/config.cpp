@@ -30,7 +30,9 @@ void Config::load(const std::string& path) {
 	
 	if(!fin) {
 		LOG("Failed to open configuration file:", path);
-		LOG("Using default configuration values.");
+		LOG("Using default configuration values");
+
+		print();
 		return;
 	}
 
@@ -86,7 +88,11 @@ void Config::load(const std::string& path) {
 
 	// Log loaded configuration
 	LOG("Configuration loaded from:", path);
+	print();
+}
 
+void Config::print() {
+	LOG("Current Configuration:");
 	LOG("Batch size:", batch_size);
 	LOG("Epochs:", epochs);
 	LOG("Learning rate:", learning_rate);

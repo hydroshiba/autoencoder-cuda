@@ -46,6 +46,7 @@ public:
 	};
 
 	static void load(const std::string& path);
+	static void print();
 };
 
 #endif // CONFIG_HPP

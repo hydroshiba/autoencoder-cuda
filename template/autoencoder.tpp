@@ -7,7 +7,7 @@
 template <typename Tag>
 Autoencoder<Tag>::Autoencoder() {
 	this->build();
-	LOG("Model built with", layers.size(), "layers.");
+	LOG("Model built with", layers.size(), "layers");
 }
 
 template <typename Tag>
