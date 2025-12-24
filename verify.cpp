@@ -11,31 +11,31 @@
 #include "utils/logger.hpp"
 #include "utils/kernel.cuh"
 
-std::vector<unsigned char> to_PNM(const Tensor<Device::CPU> &tensor) {
+std::vector<unsigned char> to_PPM(const Tensor<Device::CPU> &tensor) {
 	const int N = tensor.batches();
 	const int C = tensor.channels();
 	const int H = tensor.height();
 	const int W = tensor.width();
 
 	if(N != 1 || C != 3)
-		throw std::invalid_argument("to_PNM: Tensor must have shape (1, 3, H, W).");
+		throw std::invalid_argument("to_PPM: Tensor must have shape (1, 3, H, W).");
 
-	std::vector<unsigned char> pnm_data(H * W * 3);
+	std::vector<unsigned char> ppm_data(H * W * 3);
 
 	for(int h = 0; h < H; ++h) {
 		for(int w = 0; w < W; ++w) {
 			for(int c = 0; c < 3; ++c) {
-				// Tensor is in CHW format, PNM is HWC
+				// Tensor is in CHW format, PPM is HWC
 				size_t tensor_idx = (c * H * W) + (h * W + w);
-				size_t pnm_idx = (h * W + w) * 3 + c;
+				size_t ppm_idx = (h * W + w) * 3 + c;
 				
 				float val = tensor.data()[tensor_idx];
-				pnm_data[pnm_idx] = static_cast<unsigned char>(std::min(std::max(val * 255.0f, 0.0f), 255.0f));
+				ppm_data[ppm_idx] = static_cast<unsigned char>(std::min(std::max(val * 255.0f, 0.0f), 255.0f));
 			}
 		}
 	}
 
-	return pnm_data;
+	return ppm_data;
 }
 
 int main(int argc, char** argv) {
@@ -102,20 +102,20 @@ int main(int argc, char** argv) {
 	std::string directory = "content/output/";
 	std::filesystem::create_directory(directory);
 
-	auto in_pnm = to_PNM(cpu_batch);
-	auto cpu_pnm = to_PNM(cpu_output);
-	auto gpu_pnm = to_PNM(Tensor<Device::CPU>(gpu_output));
+	auto in_ppm = to_PPM(cpu_batch);
+	auto cpu_ppm = to_PPM(cpu_output);
+	auto gpu_ppm = to_PPM(Tensor<Device::CPU>(gpu_output));
 
-	std::ofstream in_file(directory + "in.pnm", std::ios::binary);
-	std::ofstream cpu_file(directory + "cpu.pnm", std::ios::binary);
-	std::ofstream gpu_file(directory + "gpu.pnm", std::ios::binary);
+	std::ofstream in_file(directory + "in.ppm", std::ios::binary);
+	std::ofstream cpu_file(directory + "cpu.ppm", std::ios::binary);
+	std::ofstream gpu_file(directory + "gpu.ppm", std::ios::binary);
 
-	const std::string pnm_header = "P6\n32 32\n255\n";
-	in_file << pnm_header;
-	cpu_file << pnm_header;
-	gpu_file << pnm_header;
+	const std::string ppm_header = "P6\n32 32\n255\n";
+	in_file << ppm_header;
+	cpu_file << ppm_header;
+	gpu_file << ppm_header;
 
-	in_file.write(reinterpret_cast<const char*>(in_pnm.data()), in_pnm.size());
-	cpu_file.write(reinterpret_cast<const char*>(cpu_pnm.data()), cpu_pnm.size());
-	gpu_file.write(reinterpret_cast<const char*>(gpu_pnm.data()), gpu_pnm.size());
+	in_file.write(reinterpret_cast<const char*>(in_ppm.data()), in_ppm.size());
+	cpu_file.write(reinterpret_cast<const char*>(cpu_ppm.data()), cpu_ppm.size());
+	gpu_file.write(reinterpret_cast<const char*>(gpu_ppm.data()), gpu_ppm.size());
 }

@@ -14,6 +14,8 @@
 class Trainer {
 private:
     Timer timer;
+    std::string log_file_path;
+    std::ofstream log_file;
 
     const size_t batch_size;
     const size_t epochs;
@@ -21,7 +23,8 @@ private:
     const int checkpoint_interval;
 
 public:
-    Trainer() :
+    Trainer(std::string log_file_path = "training_log.csv"):
+        log_file_path(log_file_path),
         batch_size(Config::batch_size),
         epochs(Config::epochs),
         learning_rate(Config::learning_rate),
