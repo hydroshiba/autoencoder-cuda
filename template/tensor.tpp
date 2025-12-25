@@ -145,6 +145,6 @@ Tensor<Tag> Tensor<Tag>::operator*(float scalar) const {
 }
 
 template <typename Tag>
-Tensor<Tag> operator*(float scalar, const Tensor<Device::CPU> &tensor) {
+Tensor<Tag> operator*(float scalar, const Tensor<Tag> &tensor) {
 	return tensor * scalar;
 }
