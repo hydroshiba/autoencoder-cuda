@@ -105,7 +105,7 @@ int run_encoding(const std::string& model_path, const std::string& dataset_path)
 		size_t start_idx = i * batch_size;
 
 		for(size_t j = 0; j < current_batch_size; ++j) {
-			unsigned short lbl = dataset.train_label(start_idx + j);
+			unsigned short lbl = dataset.test_label(start_idx + j);
 			label_out.write(reinterpret_cast<const char*>(&lbl), sizeof(lbl));
 		}
 

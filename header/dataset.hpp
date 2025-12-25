@@ -46,7 +46,9 @@ public:
 	// Getters
 	size_t test_size() const;
 	size_t train_size() const;
+
 	unsigned short train_label(size_t index) const;
+	unsigned short test_label(size_t index) const;
 };
 
 #endif // DATASET_HPP

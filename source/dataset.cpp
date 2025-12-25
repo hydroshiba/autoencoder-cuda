@@ -218,3 +218,8 @@ unsigned short Dataset::train_label(size_t index) const {
 	if(index >= train_labels.size()) throw std::out_of_range("Label index out of bounds");
 	return train_labels[index];
 }
+
+unsigned short Dataset::test_label(size_t index) const {
+	if(index >= test_labels.size()) throw std::out_of_range("Label index out of bounds");
+	return test_labels[index];
+}
