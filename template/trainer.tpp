@@ -13,7 +13,7 @@ void Trainer::fit(Autoencoder<Tag> &model, Dataset &dataset, Optimizer &optimize
 	float best_val_loss = std::numeric_limits<float>::max();
 
 	for(size_t epoch = 1; epoch <= epochs; ++epoch) {
-		timer.start("epoch");
+		timer.start<Tag>("epoch");
 		
 		Tensor<Tag> input;
 		float total_loss = 0.0f;
@@ -37,7 +37,7 @@ void Trainer::fit(Autoencoder<Tag> &model, Dataset &dataset, Optimizer &optimize
 				LOG("Epoch", epoch, "Batch", i + 1, "Loss:", loss_val);
 		}
 
-		timer.stop("epoch");
+		timer.stop<Tag>("epoch");
 
 		float val_loss = 0.0f;
 		size_t val_batches = dataset.test_size() / batch_size;
@@ -48,8 +48,7 @@ void Trainer::fit(Autoencoder<Tag> &model, Dataset &dataset, Optimizer &optimize
 			val_loss += loss(output, input);
 		}
 		
-		timer.synchronize();
-		float epoch_time = timer.elapsed("epoch");
+		float epoch_time = timer.elapsed<Tag>("epoch");
 		
 		float avg_train_loss = total_loss / float(batches);
 		float avg_val_loss = val_loss / float(val_batches);

@@ -44,10 +44,11 @@ int run_encoding(const std::string& model_path, const std::string& dataset_path)
 
 	size_t total_batches = (num_samples + batch_size - 1) / batch_size;
     float total_time = 0.0f;
+	float interval_time = 0.0f;
 
 	Timer timer;
 	for(size_t i = 0; i < total_batches; ++i) {
-		timer.start("batch");
+		timer.start<Tag>("batch");
 		Tensor<Tag> batch;
 		dataset.get_batch(i, batch_size, batch);
 		
@@ -64,13 +65,23 @@ int run_encoding(const std::string& model_path, const std::string& dataset_path)
 			label_out.write(reinterpret_cast<const char*>(&lbl), sizeof(lbl));
 		}
 
-		timer.stop("batch");
-		timer.synchronize();
-		float batch_time = timer.elapsed("batch");
-		total_time += batch_time;
+		timer.stop<Tag>("batch");
+		float batch_time = timer.elapsed<Tag>("batch");
 
-		if((i + 1) % 10 == 0 || i == total_batches - 1)
-			LOG("Processed batch", i + 1, "/", total_batches, "| Batch time:", batch_time, "ms");
+		total_time += batch_time;
+		interval_time += batch_time;
+
+		// Log every 10 batches
+		if((i + 1) % 10 == 0 || i == total_batches - 1) {
+			int count = (i % 10) + 1; // Handle leftover batches at the end correctly
+			if ((i + 1) % 10 == 0) count = 10;
+			
+			LOG("Processed batch", i + 1, "/", total_batches, 
+				"| Avg:", interval_time / count, "ms", 
+				"| Elapsed (last 10):", interval_time / 1000.0f, "s");
+			
+			interval_time = 0.0f; // Reset
+		}
 	}
 
 	feat_out.close();
@@ -90,9 +101,10 @@ int run_encoding(const std::string& model_path, const std::string& dataset_path)
 	}
 
 	total_batches = (num_samples + batch_size - 1) / batch_size;
+	interval_time = 0.0f;
 
 	for(size_t i = 0; i < total_batches; ++i) {
-		timer.start("batch");
+		timer.start<Tag>("batch");
 		Tensor<Tag> batch;
 		dataset.get_test_batch(i, batch_size, batch);
 		
@@ -109,13 +121,23 @@ int run_encoding(const std::string& model_path, const std::string& dataset_path)
 			label_out.write(reinterpret_cast<const char*>(&lbl), sizeof(lbl));
 		}
 
-		timer.stop("batch");
-		timer.synchronize();
-		float batch_time = timer.elapsed("batch");
-		total_time += batch_time;
+		timer.stop<Tag>("batch");
+		float batch_time = timer.elapsed<Tag>("batch");
 
-		if((i + 1) % 10 == 0 || i == total_batches - 1)
-			LOG("Processed test batch", i + 1, "/", total_batches, "| Batch time:", batch_time, "ms");
+		total_time += batch_time;
+		interval_time += batch_time;
+
+		// Log every 10 batches
+		if((i + 1) % 10 == 0 || i == total_batches - 1) {
+			int count = (i % 10) + 1; // Handle leftover batches at the end correctly
+			if ((i + 1) % 10 == 0) count = 10;
+			
+			LOG("Processed batch", i + 1, "/", total_batches, 
+				"| Avg:", interval_time / count, "ms", 
+				"| Elapsed (last 10):", interval_time / 1000.0f, "s");
+			
+			interval_time = 0.0f; // Reset
+		}
 	}
 
 	LOG("Feature extraction done. Total time:", total_time / 1000.0f, "s");
