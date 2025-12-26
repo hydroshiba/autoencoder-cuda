@@ -22,38 +22,48 @@ Tensor<Device::CPU> MaxPool2D<Device::CPU>::forward(const Tensor<Device::CPU> &i
 	Tensor<Device::CPU> output(N, C, out_h, out_w);
 	this->mask = Tensor<Device::CPU>(N, C, out_h, out_w);
 
+	const float* in_base = input.data();
+	float* out_base = output.data();
+	float* mask_base = mask.data();
+
 	#pragma omp parallel for collapse(2)
 	for(int n = 0; n < N; ++n) {
 		for(int c = 0; c < C; ++c) {
-			for(int oh = 0; oh < out_h; ++oh) {
-				for(int ow = 0; ow < out_w; ++ow) {
-					
-					float max_val = -std::numeric_limits<float>::infinity();
-					int max_local = 0;
+			const float* in_slice = in_base + (n * C + c) * H * W;
+			float* out_slice = out_base + (n * C + c) * out_h * out_w;
+			float* mask_slice = mask_base + (n * C + c) * out_h * out_w;
 
-					int h_start = oh * pool_size;
-					int w_start = ow * pool_size;
+			// Initialize with lowest possible value
+			float init_val = -std::numeric_limits<float>::infinity();
+			for(int i = 0; i < out_h * out_w; ++i) out_slice[i] = init_val;
 
-					for(int kh = 0; kh < pool_size; ++kh) {
-						for(int kw = 0; kw < pool_size; ++kw) {
+			// LOOP INVERSION: Iterate Kernel Outer, Image Inner
+			// This allows vectorizing the updates over the image rows
+			for(int kh = 0; kh < pool_size; ++kh) {
+				for(int kw = 0; kw < pool_size; ++kw) {
+					int local_idx = kh * pool_size + kw;
+
+					for(int oh = 0; oh < out_h; ++oh) {
+						int ih = oh * pool_size + kh;
+						const float* in_row = in_slice + ih * W;
+						float* out_row = out_slice + oh * out_w;
+						float* mask_row = mask_slice + oh * out_w;
+
+						int w_base_offset = kw; // iw = ow * pool_size + kw
+
+						// Vectorized Max Update
+						#pragma omp simd
+						for(int ow = 0; ow < out_w; ++ow) {
+							int iw = ow * pool_size + w_base_offset;
+							float val = in_row[iw];
 							
-							int ih = h_start + kh;
-							int iw = w_start + kw;
-
-							int idx = ((n * C + c) * H + ih) * W + iw;
-							float v = input.data()[idx];
-
-							if(v > max_val) {
-								max_val = v;
-								// Store relative local index
-								max_local = kh * pool_size + kw;
+							// Conditional update (supported by AVX)
+							if (val > out_row[ow]) {
+								out_row[ow] = val;
+								mask_row[ow] = static_cast<float>(local_idx);
 							}
 						}
 					}
-
-					int out_idx = ((n * C + c) * out_h + oh) * out_w + ow;
-					output.data()[out_idx] = max_val;
-					mask.data()[out_idx] = static_cast<float>(max_local);
 				}
 			}
 		}
@@ -70,12 +80,13 @@ Tensor<Device::CPU> MaxPool2D<Device::CPU>::backward(const Tensor<Device::CPU> &
 	const int C = cached_input.channels();
 	const int H = cached_input.height();
 	const int W = cached_input.width();
-	
 	const int out_h = grad_output.height();
 	const int out_w = grad_output.width();
 
 	Tensor<Device::CPU> derivatives = cached_output;
 	std::visit([&](auto&& act) { backward_activate(derivatives, act); }, this->activation);
+	
+	#pragma omp parallel for simd
 	for(size_t i = 0; i < derivatives.size(); ++i) {
 		derivatives.data()[i] *= grad_output.data()[i];
 	}
@@ -83,26 +94,31 @@ Tensor<Device::CPU> MaxPool2D<Device::CPU>::backward(const Tensor<Device::CPU> &
 	Tensor<Device::CPU> grad_input(N, C, H, W);
 	grad_input.fill(0.0f);
 
-	// Parallelize over outputs, safe to write to input because mapping is unique
+	float* gi_base = grad_input.data();
+	const float* der_base = derivatives.data();
+	const float* mask_base = mask.data();
+
 	#pragma omp parallel for collapse(2)
 	for(int n = 0; n < N; ++n) {
 		for(int c = 0; c < C; ++c) {
-			for(int oh = 0; oh < out_h; ++oh) {
-				for(int ow = 0; ow < out_w; ++ow) {
-					
-					int out_idx = ((n * C + c) * out_h + oh) * out_w + ow;
-					
-					// Retrieve local index
-					int local_idx = static_cast<int>(mask.data()[out_idx]);
-					int kh = local_idx / pool_size;
-					int kw = local_idx % pool_size;
+			float* gi_slice = gi_base + (n * C + c) * H * W;
+			const float* der_slice = der_base + (n * C + c) * out_h * out_w;
+			const float* mask_slice = mask_base + (n * C + c) * out_h * out_w;
 
-					int ih = oh * pool_size + kh;
-					int iw = ow * pool_size + kw;
-					
-					int in_idx = ((n * C + c) * H + ih) * W + iw;
-					grad_input.data()[in_idx] += derivatives.data()[out_idx];
-				}
+			// We can't easily invert loop here because we need to scatter based on mask.
+			// However, we can keep memory access linear on Deriv/Mask side.
+			for(int i = 0; i < out_h * out_w; ++i) {
+				int local_idx = static_cast<int>(mask_slice[i]);
+				int kh = local_idx / pool_size;
+				int kw = local_idx % pool_size;
+				
+				int oh = i / out_w;
+				int ow = i % out_w;
+
+				int ih = oh * pool_size + kh;
+				int iw = ow * pool_size + kw;
+
+				gi_slice[ih * W + iw] += der_slice[i];
 			}
 		}
 	}
