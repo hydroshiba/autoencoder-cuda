@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include "dataset.hpp"
 #include "optimizer.hpp"
 #include "loss.cuh"
@@ -33,6 +35,7 @@ int main(int argc, char** argv) {
 	Config::load(config_path);
 
 	std::string checkpoint_path = "content/model/" + device + "_autoencoder.dat";
+	std::filesystem::create_directories("content/model/");
 	
 	if(device == "cpu") train<Device::CPU>(checkpoint_path);
 	else train<Device::GPU>(checkpoint_path);
