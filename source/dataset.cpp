@@ -241,9 +241,48 @@ Tensor DataLoader::get_batch(const int &batch_idx, const int &batch_size)
     return batch;
 }
 
+Tensor DataLoader::get_test_batch(const int &batch_idx, const int &batch_size)
+{
+    const int total = test_images.batch();
+    if (batch_idx < 0 || batch_size <= 0 || batch_idx * batch_size >= total)
+    {
+        throw std::out_of_range("Invalid test batch index or size");
+    }
+
+    const int start = batch_idx * batch_size;
+    const int end = std::min(start + batch_size, total);
+    const int actual = end - start;
+
+    Tensor batch(actual, test_images.channels(), test_images.height(), test_images.width());
+
+    for (int bn = 0; bn < actual; ++bn)
+    {
+        const int n = start + bn;
+        for (int c = 0; c < test_images.channels(); ++c)
+        {
+            for (int h = 0; h < test_images.height(); ++h)
+            {
+                for (int w = 0; w < test_images.width(); ++w)
+                {
+                    batch(bn, c, h, w) = test_images(n, c, h, w);
+                }
+            }
+        }
+    }
+
+    return batch;
+}
+
 unsigned short DataLoader::get_train_label(int index) const
 {
     if (index < 0 || index >= (int)train_labels.size())
         throw std::out_of_range("train label index out of range");
     return train_labels[index];
+}
+
+unsigned short DataLoader::get_test_label(int index) const
+{
+    if (index < 0 || index >= (int)test_labels.size())
+        throw std::out_of_range("test label index out of range");
+    return test_labels[index];
 }

@@ -23,11 +23,13 @@ public:
     DataLoader(const std::string &dataset_path);
 
     Tensor get_batch(const int &batch_idx, const int &batch_size);
+    Tensor get_test_batch(const int &batch_idx, const int &batch_size);
 
     int num_train() const;
     int num_test() const;
 
     unsigned short get_train_label(int index) const;
+    unsigned short get_test_label(int index) const;
 };
 
 #endif // DATASET_HPP
