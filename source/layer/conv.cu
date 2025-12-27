@@ -2,136 +2,149 @@
 #include "utils/error.cuh"
 #include "utils/kernel.cuh"
 
-// Convolutional 2D GPU Kernels
+// --------------------------------------------------------------------------
+// Helper Kernels
+// --------------------------------------------------------------------------
 
-__global__ void conv2d_forward_kernel(
-	const float *input, const float *weights, const float *biases, float *output,
-	int batch, int in_channels, int out_channels,
-	int input_h, int input_w,
-	int kernel_size, int stride, int padding,
-	int output_h, int output_w)
-{
-	int output_idx = blockIdx.x * blockDim.x + threadIdx.x;
-	int total_output = batch * out_channels * output_h * output_w;
-
-	if(output_idx >= total_output) return;
-
-	int n = output_idx / (out_channels * output_h * output_w);
-	int remainder = output_idx % (out_channels * output_h * output_w);
-	int oc = remainder / (output_h * output_w);
-	remainder = remainder % (output_h * output_w);
-	int oh = remainder / output_w;
-	int ow = remainder % output_w;
-
-	float sum = biases[oc];
-
-	for(int ic = 0; ic < in_channels; ++ic) {
-		for(int kh = 0; kh < kernel_size; ++kh) {
-			for(int kw = 0; kw < kernel_size; ++kw) {
-				int ih = oh * stride + kh - padding;
-				int iw = ow * stride + kw - padding;
-
-				if(ih < 0 || ih >= input_h || iw < 0 || iw >= input_w) continue;
-
-				int input_idx = ((n * in_channels + ic) * input_h + ih) * input_w + iw;
-				int weight_idx = ((oc * in_channels + ic) * kernel_size + kh) * kernel_size + kw;
-
-				sum += input[input_idx] * weights[weight_idx];
-			}
-		}
-	}
-
-	output[output_idx] = sum;
-}
-
-__global__ void conv2d_bias_grad_kernel(const float *grad_out, float *grad_b, int N, int OC, int H_out, int W_out) {
-	int oc = blockIdx.x * blockDim.x + threadIdx.x;
-	if(oc >= OC) return;
-	
-	float sum = 0.0f;
-	for(int n = 0; n < N; ++n)
-		for(int oh = 0; oh < H_out; ++oh)
-			for(int ow = 0; ow < W_out; ++ow)
-				sum += grad_out[((n * OC + oc) * H_out + oh) * W_out + ow];
-	
-	grad_b[oc] += sum;
-}
-
-__global__ void conv2d_weight_grad_kernel(
-	const float *input, const float *grad_out, float *grad_w,
-	int N, int IC, int OC, int H_in, int W_in,
-	int K, int stride, int pad, int H_out, int W_out)
+__global__ void conv2d_im2col(
+	const float* data_im, float* data_col,
+	int batch_size, int channels, int height, int width,
+	int ksize, int pad, int stride,
+	int height_col, int width_col)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	int total = OC * IC * K * K;
-	if(idx >= total) return;
-	
-	int oc = idx / (IC * K * K);
-	int rem = idx % (IC * K * K);
-	int ic = rem / (K * K);
-	rem = rem % (K * K);
-	int kh = rem / K;
-	int kw = rem % K;
+	int spatial_area = height_col * width_col;
+	int total_cols = batch_size * spatial_area;
 
-	float sum = 0.0f;
-	for(int n = 0; n < N; ++n) {
-		for(int oh = 0; oh < H_out; ++oh) {
-			for(int ow = 0; ow < W_out; ++ow) {
-				int ih = oh * stride + kh - pad;
-				int iw = ow * stride + kw - pad;
-				if(ih < 0 || ih >= H_in || iw < 0 || iw >= W_in) continue;
-				
-				int in_idx = ((n * IC + ic) * H_in + ih) * W_in + iw;
-				int go_idx = ((n * OC + oc) * H_out + oh) * W_out + ow;
-				sum += input[in_idx] * grad_out[go_idx];
+	if(idx >= total_cols) return;
+
+	int w_out = idx % width_col;
+	int h_out = (idx / width_col) % height_col;
+	int b = idx / spatial_area;
+
+	int input_offset = b * (channels * height * width);
+	int matrix_col_idx = idx;
+
+	for(int c = 0; c < channels; ++c) {
+		for(int kh = 0; kh < ksize; ++kh) {
+			for(int kw = 0; kw < ksize; ++kw) {
+				int h_in = h_out * stride - pad + kh;
+				int w_in = w_out * stride - pad + kw;
+				int matrix_row_idx = (c * ksize + kh) * ksize + kw;
+				int dst_idx = matrix_row_idx * total_cols + matrix_col_idx;
+
+				float val = 0.0f;
+				if(h_in >= 0 && h_in < height && w_in >= 0 && w_in < width) {
+					val = data_im[input_offset + (c * height + h_in) * width + w_in];
+				}
+				data_col[dst_idx] = val;
 			}
 		}
 	}
-	
-	grad_w[idx] += sum;
 }
 
-__global__ void conv2d_input_grad_kernel(
-	const float *grad_out, const float *weights, float *grad_in,
-	int N, int IC, int OC, int H_in, int W_in,
-	int K, int stride, int pad, int H_out, int W_out)
+__global__ void permute_output_add_bias(
+	const float* gemm_out, const float* bias, float* final_out,
+	int batch, int channels, int height, int width)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	int total = N * IC * H_in * W_in;
+	int spatial = height * width;
+	int total = batch * channels * spatial;
+
 	if(idx >= total) return;
-	
-	int n = idx / (IC * H_in * W_in);
-	int rem = idx % (IC * H_in * W_in);
-	int ic = rem / (H_in * W_in);
-	rem = rem % (H_in * W_in);
-	int ih = rem / W_in;
-	int iw = rem % W_in;
+
+	int w_out = idx % width;
+	int rem = idx / width;
+	int h_out = rem % height;
+	rem /= height;
+	int c = rem % channels;
+	int b = rem / channels;
+
+	int src_flat_idx = b * spatial + h_out * width + w_out; 
+	int src_idx = c * (batch * spatial) + src_flat_idx;
+
+	final_out[idx] = gemm_out[src_idx] + bias[c];
+}
+
+// Permutes (Batch, Channel, Height, Width) -> (Channel, Batch, Height, Width)
+__global__ void permute_nchw_to_cnhw(
+	const float* input, float* output,
+	int N, int C, int Spatial) 
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int total = N * C * Spatial;
+	if(idx >= total) return;
+
+	int s = idx % Spatial;
+	int temp = idx / Spatial;
+	int c = temp % C;
+	int n = temp / C;
+
+	int out_idx = c * (N * Spatial) + n * Spatial + s;
+	output[out_idx] = input[idx];
+}
+
+// Simple reduction to sum rows of the (C x N*H*W) matrix for bias gradients
+__global__ void reduce_sum_rows(
+	const float* input, float* biases,
+	int rows, int cols)
+{
+	int row = blockIdx.x * blockDim.x + threadIdx.x;
+	if(row >= rows) return;
 
 	float sum = 0.0f;
-	for(int oc = 0; oc < OC; ++oc) {
-		for(int kh = 0; kh < K; ++kh) {
-			for(int kw = 0; kw < K; ++kw) {
-				int oh_unstrided = ih + pad - kh;
-				int ow_unstrided = iw + pad - kw;
-				
-				if(oh_unstrided < 0 || ow_unstrided < 0) continue;
-				if(oh_unstrided % stride != 0 || ow_unstrided % stride != 0) continue;
-				
-				int oh = oh_unstrided / stride;
-				int ow = ow_unstrided / stride;
-				
-				if(oh < 0 || oh >= H_out || ow < 0 || ow >= W_out) continue;
+	for(int i = 0; i < cols; ++i) {
+		sum += input[row * cols + i];
+	}
+	biases[row] = sum;
+}
 
-				int go_idx = ((n * OC + oc) * H_out + oh) * W_out + ow;
-				int w_idx = ((oc * IC + ic) * K + kh) * K + kw;
-				sum += grad_out[go_idx] * weights[w_idx];
+static __global__ void conv2d_col2im(
+	const float *data_col, float *data_im,
+	int N, int C, int H, int W,
+	int K, int stride, int pad,
+	int out_h, int out_w)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int num_kernels = N * C * H * W;
+	
+	if(idx >= num_kernels) return;
+
+	int w_in = idx % W;
+	int temp = idx / W;
+	int h_in = temp % H;
+	temp /= H;
+	int c = temp % C;
+	int n = temp / C;
+
+	float val = 0.0f;
+	int total_cols = N * out_h * out_w;
+
+	for(int kh = 0; kh < K; ++kh) {
+		int h_val = h_in + pad - kh;
+		if(h_val >= 0 && (h_val % stride == 0)) {
+			int h_out = h_val / stride;
+			if(h_out < out_h) {
+				for(int kw = 0; kw < K; ++kw) {
+					int w_val = w_in + pad - kw;
+					if(w_val >= 0 && (w_val % stride == 0)) {
+						int w_out = w_val / stride;
+						if(w_out < out_w) {
+							int matrix_row = (c * K + kh) * K + kw;
+							int matrix_col = n * (out_h * out_w) + h_out * out_w + w_out;
+							val += data_col[matrix_row * total_cols + matrix_col];
+						}
+					}
+				}
 			}
 		}
 	}
-	grad_in[idx] = sum;
+	data_im[idx] = val;
 }
 
-// Convolutional 2D GPU specialization implementations
+// --------------------------------------------------------------------------
+// Conv2D Implementation
+// --------------------------------------------------------------------------
 
 namespace Layer {
 
@@ -146,20 +159,55 @@ Tensor<Device::GPU> Conv2D<Device::GPU>::forward(const Tensor<Device::GPU> &inpu
 	int out_h = (H + 2 * padding - filter_size) / stride + 1;
 	int out_w = (W + 2 * padding - filter_size) / stride + 1;
 
+	int m = out_channels;
+	int k = in_channels * filter_size * filter_size;
+	int n_cols = N * out_h * out_w; 
+
+	// ----------------------------------------------------------------------
+	// Forward Buffer Allocation
+	// ----------------------------------------------------------------------
+	if (!forward_buffer) {
+		constexpr int MAX_BATCH_FWD = 256;
+		
+		size_t pixels_max = (size_t)out_h * out_w;
+		size_t k_dim = (size_t)in_channels * filter_size * filter_size;
+		size_t m_dim = (size_t)out_channels;
+		size_t cols_fwd = (size_t)MAX_BATCH_FWD * pixels_max;
+
+		checkCUDA(cudaMalloc(&forward_buffer, k_dim * cols_fwd * sizeof(float)));
+		checkCUDA(cudaMalloc(&forward_gemm_proxy, m_dim * cols_fwd * sizeof(float)));
+	}
+
 	Tensor<Device::GPU> output(N, out_channels, out_h, out_w);
-	size_t out_size = output.size();
+	dim3 threads(Kernel::BLOCK_SIZE, Kernel::BLOCK_SIZE);
 
-	int threads = Config::Conv2D::block_width * Config::Conv2D::block_height;
-	int blocks = (out_size + threads - 1) / threads;
-
-	conv2d_forward_kernel<<<blocks, threads>>>(
-		input.data(), weights.data(), biases.data(), output.data(),
-		N, in_channels, out_channels, H, W,
-		filter_size, stride, padding, out_h, out_w
+	// 1. Batched Im2Col
+	int total_pixels = n_cols;
+	dim3 grid_im2col((total_pixels + 255) / 256);
+	conv2d_im2col<<<grid_im2col, 256>>>(
+		input.data(), forward_buffer,
+		N, in_channels, H, W,
+		filter_size, padding, stride,
+		out_h, out_w
 	);
 
-	checkCUDA(cudaGetLastError());
-	checkCUDA(cudaDeviceSynchronize());
+	// 2. GEMM
+	dim3 grid_gemm(
+		(n_cols + threads.x - 1) / threads.x,
+		(m + threads.y - 1) / threads.y
+	);
+	Kernel::matrix_multiply<<<grid_gemm, threads>>>(
+		weights.data(), forward_buffer, forward_gemm_proxy,
+		m, n_cols, k
+	);
+
+	// 3. Permute + Bias
+	int out_size = output.size();
+	int blocks_perm = (out_size + 255) / 256;
+	permute_output_add_bias<<<blocks_perm, 256>>>(
+		forward_gemm_proxy, biases.data(), output.data(),
+		N, out_channels, out_h, out_w
+	);
 
 	std::visit([&](auto&& act) { forward_activate(output, act); }, this->activation);
 	this->cached_output = output;
@@ -176,51 +224,97 @@ Tensor<Device::GPU> Conv2D<Device::GPU>::backward(const Tensor<Device::GPU> &gra
 	Kernel::vector_multiply<<<blocks_deriv, threads>>>(
 		derivatives.data(), grad_output.data(), derivatives.size()
 	);
-	checkCUDA(cudaGetLastError());
-	checkCUDA(cudaDeviceSynchronize());
 
 	int N = cached_input.batches();
-	int C = in_channels;
-	int H = cached_input.height();
-	int W = cached_input.width();
+	int C_in = in_channels;
+	int H_in = cached_input.height();
+	int W_in = cached_input.width();
 	
-	int out_h = derivatives.height();
-	int out_w = derivatives.width();
+	int C_out = out_channels;
+	int H_out = derivatives.height();
+	int W_out = derivatives.width();
 
-	// Initialize gradients to 0
-	Tensor<Device::GPU> grad_input(N, C, H, W);
-	grad_input.fill(0.0f);
+	int K_sz = C_in * filter_size * filter_size; 
+	int L_sz = N * H_out * W_out; 
+	int M_sz = C_out; 
+
+	// ----------------------------------------------------------------------
+	// Backward Buffer Allocation
+	// ----------------------------------------------------------------------
+	if (!backward_dY_permute) {
+		constexpr int MAX_BATCH_BWD = 64;
+
+		// Use dimensions from the derivatives (grad_output) to determine spatial size
+		size_t pixels_max = (size_t)H_out * W_out;
+		
+		size_t k_dim = (size_t)K_sz;
+		size_t m_dim = (size_t)M_sz;
+		size_t cols_bwd = (size_t)MAX_BATCH_BWD * pixels_max;
+
+		checkCUDA(cudaMalloc(&backward_dY_permute, m_dim * cols_bwd * sizeof(float)));
+		checkCUDA(cudaMalloc(&backward_X_col, k_dim * cols_bwd * sizeof(float)));
+		checkCUDA(cudaMalloc(&backward_X_col_T, cols_bwd * k_dim * sizeof(float)));
+		checkCUDA(cudaMalloc(&backward_W_T, k_dim * m_dim * sizeof(float)));
+		checkCUDA(cudaMalloc(&backward_dX_col, k_dim * cols_bwd * sizeof(float)));
+	}
+
+	// 1. Permute Gradients
+	int total_output_elements = derivatives.size();
+	permute_nchw_to_cnhw<<<(total_output_elements + 255)/256, 256>>>(
+		derivatives.data(), backward_dY_permute,
+		N, C_out, H_out * W_out
+	);
+
+	// 2. Bias Gradients
+	reduce_sum_rows<<<(M_sz + 255)/256, 256>>>(
+		backward_dY_permute, grad_biases.data(), M_sz, L_sz
+	);
+
+	// 3. Weight Gradients
+	// 3a. Re-compute Im2Col
+	dim3 grid_im2col((L_sz + 255) / 256);
+	conv2d_im2col<<<grid_im2col, 256>>>(
+		cached_input.data(), backward_X_col,
+		N, C_in, H_in, W_in,
+		filter_size, padding, stride,
+		H_out, W_out
+	);
 	
-	// Bias Gradients
-	int blocks_b = (out_channels + threads - 1) / threads;
-	conv2d_bias_grad_kernel<<<blocks_b, threads>>>(
-		derivatives.data(), grad_biases.data(),
-		N, out_channels, out_h, out_w
-	);
-	checkCUDA(cudaGetLastError());
+	// 3b. Transpose X_col
+	dim3 block_dim(Kernel::BLOCK_SIZE, Kernel::BLOCK_SIZE);
+	dim3 grid_trans_x((L_sz + block_dim.x - 1) / block_dim.x, (K_sz + block_dim.y - 1) / block_dim.y);
+	Kernel::matrix_transpose<<<grid_trans_x, block_dim>>>(backward_X_col, backward_X_col_T, K_sz, L_sz);
 
-	// Weight Gradients
-	size_t w_size = grad_weights.size();
-	int blocks_w = (w_size + threads - 1) / threads;
-	conv2d_weight_grad_kernel<<<blocks_w, threads>>>(
-		cached_input.data(), derivatives.data(), grad_weights.data(),
-		N, C, out_channels, H, W,
-		filter_size, stride, padding, out_h, out_w
+	// 3c. GEMM for Weights
+	dim3 grid_gemm_w((K_sz + block_dim.x - 1) / block_dim.x, (M_sz + block_dim.y - 1) / block_dim.y);
+	Kernel::matrix_multiply<<<grid_gemm_w, block_dim>>>(
+		backward_dY_permute, backward_X_col_T, grad_weights.data(),
+		M_sz, K_sz, L_sz
 	);
-	checkCUDA(cudaGetLastError());
 
-	// Input Gradients
-	size_t in_size = grad_input.size();
-	int blocks_in = (in_size + threads - 1) / threads;
-	conv2d_input_grad_kernel<<<blocks_in, threads>>>(
-		derivatives.data(), weights.data(), grad_input.data(),
-		N, C, out_channels, H, W,
-		filter_size, stride, padding, out_h, out_w
+	// 4. Input Gradients
+	// 4a. Transpose Weights
+	dim3 grid_trans_w((K_sz + block_dim.x - 1) / block_dim.x, (M_sz + block_dim.y - 1) / block_dim.y);
+	Kernel::matrix_transpose<<<grid_trans_w, block_dim>>>(weights.data(), backward_W_T, M_sz, K_sz);
+
+	// 4b. GEMM for Input
+	dim3 grid_gemm_in((L_sz + block_dim.x - 1) / block_dim.x, (K_sz + block_dim.y - 1) / block_dim.y);
+	Kernel::matrix_multiply<<<grid_gemm_in, block_dim>>>(
+		backward_W_T, backward_dY_permute, backward_dX_col,
+		K_sz, L_sz, M_sz
+	);
+
+	// 4c. Col2Im
+	Tensor<Device::GPU> grad_input(N, C_in, H_in, W_in);
+	int total_in_elements = grad_input.size(); 
+	dim3 grid_col2im((total_in_elements + 255) / 256);
+	conv2d_col2im<<<grid_col2im, 256>>>(
+		backward_dX_col, grad_input.data(),
+		N, C_in, H_in, W_in,
+		filter_size, stride, padding,
+		H_out, W_out
 	);
 	
-	checkCUDA(cudaGetLastError());
-	checkCUDA(cudaDeviceSynchronize());
-
 	return grad_input;
 }
 

@@ -118,7 +118,7 @@ void Tensor<Tag>::transform(Function func) {
 		size_t blocks = (total_size + threads - 1) / threads;
 
 		transform_kernel<<<blocks, threads>>>(data_, total_size, func);
-		cudaDeviceSynchronize();
+		// cudaDeviceSynchronize();
 		checkCUDA(cudaGetLastError());
 	}
 }

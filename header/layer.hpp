@@ -73,6 +73,15 @@ private:
 	int in_channels, out_channels;
 	int filter_size, stride, padding;
 
+	float* forward_buffer = nullptr;
+	float* forward_gemm_proxy = nullptr;
+
+	float* backward_dY_permute = nullptr;
+	float* backward_X_col = nullptr;
+	float* backward_X_col_T = nullptr;
+	float* backward_W_T = nullptr;
+	float* backward_dX_col = nullptr;
+
 public:
 	Conv2D(
 		int in_channels,
@@ -82,6 +91,10 @@ public:
 		int padding = 0,
 		Activation::Func activation = Activation::Identity()
 	);
+
+	Conv2D(const Conv2D &other);
+	Conv2D& operator=(const Conv2D &other);
+	~Conv2D();
 
 	Tensor<Tag> forward(const Tensor<Tag> &input) override;
 	Tensor<Tag> backward(const Tensor<Tag> &grad_output) override;

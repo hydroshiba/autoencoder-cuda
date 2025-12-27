@@ -50,6 +50,43 @@ Conv2D<Tag>::Conv2D(int in_channels, int out_channels, int filter_size, int stri
 }
 
 template <typename Tag>
+Conv2D<Tag>::Conv2D(const Conv2D &other) :
+	Weighted<Tag>(other),
+	in_channels(other.in_channels),
+	out_channels(other.out_channels),
+	filter_size(other.filter_size),
+	stride(other.stride),
+	padding(other.padding) {}
+
+template <typename Tag>
+Conv2D<Tag>& Conv2D<Tag>::operator=(const Conv2D &other) {
+	if(this == &other) return *this;
+	Weighted<Tag>::operator=(other);
+
+	in_channels = other.in_channels;
+	out_channels = other.out_channels;
+	filter_size = other.filter_size;
+	stride = other.stride;
+	padding = other.padding;
+
+	return *this;
+}
+
+template <typename Tag>
+Conv2D<Tag>::~Conv2D() {
+	if constexpr (std::is_same_v<Tag, Device::GPU>) {
+		if(forward_buffer) checkCUDA(cudaFree(forward_buffer));
+		if(forward_gemm_proxy) checkCUDA(cudaFree(forward_gemm_proxy));
+
+		if(backward_dY_permute) checkCUDA(cudaFree(backward_dY_permute));
+		if(backward_X_col) checkCUDA(cudaFree(backward_X_col));
+		if(backward_X_col_T) checkCUDA(cudaFree(backward_X_col_T));
+		if(backward_W_T) checkCUDA(cudaFree(backward_W_T));
+		if(backward_dX_col) checkCUDA(cudaFree(backward_dX_col));
+	}
+}
+
+template <typename Tag>
 std::unique_ptr<Base<Tag>> Conv2D<Tag>::clone() const {
 	return std::make_unique<Conv2D<Tag>>(*this);
 }
